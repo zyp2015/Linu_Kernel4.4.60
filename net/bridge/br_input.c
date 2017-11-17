@@ -241,9 +241,9 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 			pdst = dst->dst;
 		}
 
-		if (pdst)
+		if (pdst)/*转发*/
 			br_forward(pdst, skb, skb2);
-		else
+		else/*都转发*/
 			br_flood_forward(br, skb, skb2, unicast);
 	}
 
