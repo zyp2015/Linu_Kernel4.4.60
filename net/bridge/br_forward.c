@@ -58,7 +58,7 @@ int br_dev_queue_push_xmit(struct net *net, struct sock *sk, struct sk_buff *skb
 		skb_set_network_header(skb, depth);
 	}
     
-	dev_queue_xmit(skb);
+	dev_queue_xmit(skb);/*·¢ËÍµ½Á´Â·²ã*/
 
 	return 0;
 
