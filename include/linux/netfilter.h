@@ -84,18 +84,19 @@ typedef unsigned int nf_hookfn(void *priv,
 			       struct sk_buff *skb,
 			       const struct nf_hook_state *state);
 
-struct nf_hook_ops {
-	struct list_head 	list;
-
+struct nf_hook_ops {/*钩子数据结构*/
+	struct list_head 	list; /*用于链入全局数数组*/
+    
 	/* User fills in from here down. */
-	nf_hookfn		*hook;
-	struct net_device	*dev;
+	nf_hookfn		*hook; /*具体钩子函数的函数指针*/
+	struct net_device	*dev;/*不知道哪个内核版本增加的 */
 	void			*priv;
-	u_int8_t		pf;
-	unsigned int		hooknum;
+	u_int8_t		pf;/*协议族*/
+	unsigned int		hooknum;/*钩子点*/
 	/* Hooks are ordered in ascending priority. */
-	int			priority;
+	int			priority;/*优先级*/
 };
+
 
 struct nf_sockopt_ops {
 	struct list_head list;

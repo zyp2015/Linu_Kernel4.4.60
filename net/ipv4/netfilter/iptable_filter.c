@@ -23,17 +23,17 @@ MODULE_DESCRIPTION("iptables filter table");
 #define FILTER_VALID_HOOKS ((1 << NF_INET_LOCAL_IN) | \
 			    (1 << NF_INET_FORWARD) | \
 			    (1 << NF_INET_LOCAL_OUT))
-
+/*filter 表结构体*/
 static const struct xt_table packet_filter = {
 	.name		= "filter",
-	.valid_hooks	= FILTER_VALID_HOOKS,
+	.valid_hooks	= FILTER_VALID_HOOKS,/*影响的钩子点*/
 	.me		= THIS_MODULE,
 	.af		= NFPROTO_IPV4,
 	.priority	= NF_IP_PRI_FILTER,
 };
 
 static unsigned int
-iptable_filter_hook(void *priv, struct sk_buff *skb,
+iptable_filter_hook(void *priv, struct sk_buff *skb,/*filter表的hook函数 最后都会调用ipt_do_table遍历规则*/
 		    const struct nf_hook_state *state)
 {
 	if (state->hook == NF_INET_LOCAL_OUT &&
@@ -45,12 +45,12 @@ iptable_filter_hook(void *priv, struct sk_buff *skb,
 	return ipt_do_table(skb, state, state->net->ipv4.iptable_filter);
 }
 
-static struct nf_hook_ops *filter_ops  ;
+static struct nf_hook_ops *filter_ops  ;/*filer 表的钩子 在用户空间表现出来就是链*/
 
 /* Default to forward because I got too much mail already. */
 static bool forward = true;
 module_param(forward, bool, 0000);
-
+/*好像是内核网络空间相关的东西 不知道多久加进netfilter框架的*/
 static int __net_init iptable_filter_net_init(struct net *net)
 {
 	struct ipt_replace *repl;
@@ -78,6 +78,7 @@ static struct pernet_operations iptable_filter_net_ops = {
 	.exit = iptable_filter_net_exit,
 };
 
+/*filer 模块初始化*/
 static int __init iptable_filter_init(void)
 {
 	int ret;
@@ -87,6 +88,7 @@ static int __init iptable_filter_init(void)
 		return ret;
 
 	/* Register hooks */
+	/*注册filer表相关的hook函数*/
 	filter_ops = xt_hook_link(&packet_filter, iptable_filter_hook);
 	if (IS_ERR(filter_ops)) {
 		ret = PTR_ERR(filter_ops);

@@ -47,7 +47,7 @@ enum nf_inet_hooks {
 	NF_INET_FORWARD,
 	NF_INET_LOCAL_OUT,
 	NF_INET_POST_ROUTING,
-	NF_INET_NUMHOOKS
+	NF_INET_NUMHOOKS/*钩子点*/
 };
 
 enum nf_dev_hooks {
@@ -64,7 +64,7 @@ enum {
 	NFPROTO_BRIDGE =  7,
 	NFPROTO_IPV6   = 10,
 	NFPROTO_DECNET = 12,
-	NFPROTO_NUMPROTO,
+	NFPROTO_NUMPROTO, /*钩子函数支持的协议*/
 };
 
 union nf_inet_addr {

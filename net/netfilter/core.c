@@ -56,7 +56,8 @@ void nf_unregister_afinfo(const struct nf_afinfo *afinfo)
 EXPORT_SYMBOL_GPL(nf_unregister_afinfo);
 
 #ifdef HAVE_JUMP_LABEL
-struct static_key nf_hooks_needed[NFPROTO_NUMPROTO][NF_MAX_HOOKS];
+struct static_key nf_hooks_needed[NFPROTO_NUMPROTO][NF_MAX_HOOKS]; /*static_key»úÖÆ ÓÃÓÚÓÅ»¯Æµ·±if-elseÅÐ¶ÏµÄ¶«Î÷ 
+                                                                http://blog.csdn.net/tiantao2012/article/details/53995724*/
 EXPORT_SYMBOL(nf_hooks_needed);
 #endif
 
@@ -96,7 +97,7 @@ int nf_register_net_hook(struct net *net, const struct nf_hook_ops *reg)
 	entry->orig_ops	= reg;
 	entry->ops	= *reg;
 
-	hook_list = nf_find_hook_list(net, reg);
+	hook_list = nf_find_hook_list(net, reg); /*hook×¢²áÕæÕýµÄº¯Êý  ¶Ô±È2.X 3.XµÄ°æ±¾¸ÄÁËÐí¶à ¸Ð¾õ*/
 	if (!hook_list) {
 		kfree(entry);
 		return -ENOENT;
@@ -195,7 +196,7 @@ int nf_register_hook(struct nf_hook_ops *reg)
 
 	rtnl_lock();
 	for_each_net(net) {
-		ret = nf_register_net_hook(net, reg);
+		ret = nf_register_net_hook(net, reg);/*å?å?å?å?å?ÎªÊ²Ã´*/
 		if (ret && ret != -ENOENT)
 			goto rollback;
 	}
@@ -226,7 +227,7 @@ void nf_unregister_hook(struct nf_hook_ops *reg)
 	rtnl_unlock();
 }
 EXPORT_SYMBOL(nf_unregister_hook);
-
+/*×¢²á¶à¸ö¹³×Óº¯Êý,·â×°ÁËnf_register_hook*/
 int nf_register_hooks(struct nf_hook_ops *reg, unsigned int n)
 {
 	unsigned int i;

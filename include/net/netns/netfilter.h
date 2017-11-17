@@ -14,6 +14,6 @@ struct netns_nf {
 #ifdef CONFIG_SYSCTL
 	struct ctl_table_header *nf_log_dir_header;
 #endif
-	struct list_head hooks[NFPROTO_NUMPROTO][NF_MAX_HOOKS];
+	struct list_head hooks[NFPROTO_NUMPROTO][NF_MAX_HOOKS]; /*全局存储钩子函数 不知道怎么回事封装到这里了 后面看看再说*/
 };
 #endif

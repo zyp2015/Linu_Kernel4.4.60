@@ -1421,6 +1421,7 @@ static const struct file_operations xt_target_ops = {
  * This function will take care of creating and registering the necessary
  * Netfilter hooks for XT tables.
  */
+ /*注册了三个钩子函数,不过都是同一个钩子函数*/
 struct nf_hook_ops *xt_hook_link(const struct xt_table *table, nf_hookfn *fn)
 {
 	unsigned int hook_mask = table->valid_hooks;
@@ -1444,7 +1445,7 @@ struct nf_hook_ops *xt_hook_link(const struct xt_table *table, nf_hookfn *fn)
 		++i;
 	}
 
-	ret = nf_register_hooks(ops, num_hooks);
+	ret = nf_register_hooks(ops, num_hooks);/*注册相应的钩子函数*/
 	if (ret < 0) {
 		kfree(ops);
 		return ERR_PTR(ret);
