@@ -1,0 +1,2 @@
+kernel/drivers/remoteproc/remoteproc.ko
+kernel/drivers/remoteproc/q6v5-wcss.ko

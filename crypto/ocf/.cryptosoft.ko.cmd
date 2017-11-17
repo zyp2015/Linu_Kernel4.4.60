@@ -1,0 +1,1 @@
+cmd_crypto/ocf/cryptosoft.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o crypto/ocf/cryptosoft.ko crypto/ocf/cryptosoft.o crypto/ocf/cryptosoft.mod.o

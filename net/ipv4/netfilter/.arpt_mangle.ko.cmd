@@ -1,0 +1,1 @@
+cmd_net/ipv4/netfilter/arpt_mangle.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o net/ipv4/netfilter/arpt_mangle.ko net/ipv4/netfilter/arpt_mangle.o net/ipv4/netfilter/arpt_mangle.mod.o

@@ -1,0 +1,1 @@
+cmd_drivers/misc/ipq40xx_qseecom.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o drivers/misc/ipq40xx_qseecom.ko drivers/misc/ipq40xx_qseecom.o drivers/misc/ipq40xx_qseecom.mod.o

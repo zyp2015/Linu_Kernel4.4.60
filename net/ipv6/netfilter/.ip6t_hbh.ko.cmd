@@ -1,0 +1,1 @@
+cmd_net/ipv6/netfilter/ip6t_hbh.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o net/ipv6/netfilter/ip6t_hbh.ko net/ipv6/netfilter/ip6t_hbh.o net/ipv6/netfilter/ip6t_hbh.mod.o

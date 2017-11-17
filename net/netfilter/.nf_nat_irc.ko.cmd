@@ -1,0 +1,1 @@
+cmd_net/netfilter/nf_nat_irc.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o net/netfilter/nf_nat_irc.ko net/netfilter/nf_nat_irc.o net/netfilter/nf_nat_irc.mod.o

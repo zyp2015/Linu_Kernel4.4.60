@@ -1,0 +1,8 @@
+kernel/crypto/md5.ko
+kernel/crypto/sha1_generic.ko
+kernel/crypto/authenc.ko
+kernel/crypto/authencesn.ko
+kernel/crypto/tcrypt.ko
+kernel/crypto/ocf/ocf.ko
+kernel/crypto/ocf/cryptodev.ko
+kernel/crypto/ocf/cryptosoft.ko

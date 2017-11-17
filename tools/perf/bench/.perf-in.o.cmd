@@ -1,0 +1,1 @@
+cmd_bench/perf-in.o :=  arm-openwrt-linux-uclibcgnueabi-ld -r -o bench/perf-in.o  bench/sched-messaging.o bench/sched-pipe.o bench/mem-functions.o bench/futex-hash.o bench/futex-wake.o bench/futex-wake-parallel.o bench/futex-requeue.o bench/futex-lock-pi.o

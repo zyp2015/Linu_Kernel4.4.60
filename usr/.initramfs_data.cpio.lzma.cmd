@@ -1,0 +1,1 @@
+cmd_usr/initramfs_data.cpio.lzma := bash ./scripts/gen_initramfs_list.sh -o usr/initramfs_data.cpio.lzma  -u 1016  -g 1016  /home/kokozhao/svn/RT5000W-D187/spf7.0/02.Coding/qualcomm_sdk/qsdk/build_dir/target-arm_cortex-a7_uClibc-1.0.14_eabi/root-ipq /home/kokozhao/svn/RT5000W-D187/spf7.0/02.Coding/qualcomm_sdk/qsdk/target/linux/generic/image/initramfs-base-files.txt

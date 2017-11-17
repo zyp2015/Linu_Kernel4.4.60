@@ -1,0 +1,1 @@
+cmd_drivers/net/ethernet/intel/e1000e/e1000e.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o drivers/net/ethernet/intel/e1000e/e1000e.ko drivers/net/ethernet/intel/e1000e/e1000e.o drivers/net/ethernet/intel/e1000e/e1000e.mod.o

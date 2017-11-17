@@ -1,0 +1,1 @@
+cmd_net/ipv4/xfrm4_mode_beet.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o net/ipv4/xfrm4_mode_beet.ko net/ipv4/xfrm4_mode_beet.o net/ipv4/xfrm4_mode_beet.mod.o

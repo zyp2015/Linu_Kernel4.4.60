@@ -1,0 +1,8 @@
+kernel/fs/fat/fat.ko
+kernel/fs/fat/vfat.ko
+kernel/fs/fat/msdos.ko
+kernel/fs/nls/nls_base.ko
+kernel/fs/nls/nls_cp437.ko
+kernel/fs/nls/nls_iso8859-1.ko
+kernel/fs/ntfs/ntfs.ko
+kernel/fs/fuse/fuse.ko

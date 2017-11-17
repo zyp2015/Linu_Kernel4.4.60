@@ -1,0 +1,3 @@
+kernel/crypto/ocf/ocf.ko
+kernel/crypto/ocf/cryptodev.ko
+kernel/crypto/ocf/cryptosoft.ko

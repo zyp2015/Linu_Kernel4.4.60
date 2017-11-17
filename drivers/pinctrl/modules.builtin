@@ -1,0 +1,4 @@
+kernel/drivers/pinctrl/pinctrl-single.ko
+kernel/drivers/pinctrl/qcom/pinctrl-ipq807x.ko
+kernel/drivers/pinctrl/qcom/pinctrl-spmi-gpio.ko
+kernel/drivers/pinctrl/qcom/pinctrl-spmi-mpp.ko

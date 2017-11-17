@@ -1,0 +1,1 @@
+cmd_drivers/crypto/qce/qcrypto.o := arm-openwrt-linux-uclibcgnueabi-ld -EL    -r -o drivers/crypto/qce/qcrypto.o drivers/crypto/qce/core.o drivers/crypto/qce/common.o drivers/crypto/qce/dma.o drivers/crypto/qce/sha.o drivers/crypto/qce/ablkcipher.o 

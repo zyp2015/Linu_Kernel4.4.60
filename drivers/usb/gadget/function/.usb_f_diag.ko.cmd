@@ -1,0 +1,1 @@
+cmd_drivers/usb/gadget/function/usb_f_diag.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o drivers/usb/gadget/function/usb_f_diag.ko drivers/usb/gadget/function/usb_f_diag.o drivers/usb/gadget/function/usb_f_diag.mod.o

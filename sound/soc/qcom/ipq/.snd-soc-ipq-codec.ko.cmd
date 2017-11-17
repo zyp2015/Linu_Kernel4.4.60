@@ -1,0 +1,1 @@
+cmd_sound/soc/qcom/ipq/snd-soc-ipq-codec.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o sound/soc/qcom/ipq/snd-soc-ipq-codec.ko sound/soc/qcom/ipq/snd-soc-ipq-codec.o sound/soc/qcom/ipq/snd-soc-ipq-codec.mod.o

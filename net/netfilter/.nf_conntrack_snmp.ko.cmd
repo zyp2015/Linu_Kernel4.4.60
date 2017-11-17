@@ -1,0 +1,1 @@
+cmd_net/netfilter/nf_conntrack_snmp.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o net/netfilter/nf_conntrack_snmp.ko net/netfilter/nf_conntrack_snmp.o net/netfilter/nf_conntrack_snmp.mod.o

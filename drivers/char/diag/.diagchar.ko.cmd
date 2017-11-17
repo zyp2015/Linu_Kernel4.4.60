@@ -1,0 +1,1 @@
+cmd_drivers/char/diag/diagchar.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o drivers/char/diag/diagchar.ko drivers/char/diag/diagchar.o drivers/char/diag/diagchar.mod.o

@@ -1,0 +1,1 @@
+cmd_crypto/ocf/ocf.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o crypto/ocf/ocf.ko crypto/ocf/ocf.o crypto/ocf/ocf.mod.o

@@ -1,0 +1,1 @@
+cmd_crypto/ocf/cryptodev.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o crypto/ocf/cryptodev.ko crypto/ocf/cryptodev.o crypto/ocf/cryptodev.mod.o

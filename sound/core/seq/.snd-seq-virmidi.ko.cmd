@@ -1,0 +1,1 @@
+cmd_sound/core/seq/snd-seq-virmidi.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o sound/core/seq/snd-seq-virmidi.ko sound/core/seq/snd-seq-virmidi.o sound/core/seq/snd-seq-virmidi.mod.o

@@ -1,0 +1,3 @@
+kernel/drivers/misc/qseecom.ko
+kernel/drivers/misc/ipq40xx_qseecom.ko
+kernel/drivers/misc/fw_auth_test.ko

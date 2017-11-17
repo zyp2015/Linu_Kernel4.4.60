@@ -1,0 +1,1 @@
+cmd_net/sched/act_police.ko := arm-openwrt-linux-uclibcgnueabi-ld -EL -r  -T ./scripts/module-common.lds --build-id  -T ./arch/arm/kernel/module.lds -o net/sched/act_police.ko net/sched/act_police.o net/sched/act_police.mod.o
