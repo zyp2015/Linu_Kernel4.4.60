@@ -475,7 +475,7 @@ static inline int neigh_hh_output(const struct hh_cache *hh, struct sk_buff *skb
 	} while (read_seqretry(&hh->hh_lock, seq));
 
 	skb_push(skb, hh_len);
-	return dev_queue_xmit(skb);
+	return dev_queue_xmit(skb);/*二层报文发送函数*/
 }
 
 static inline struct neighbour *

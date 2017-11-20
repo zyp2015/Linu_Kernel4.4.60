@@ -3118,7 +3118,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	struct Qdisc *q;
 	int rc = -ENOMEM;
 
-	skb_reset_mac_header(skb);
+	skb_reset_mac_header(skb); /*设置mac header偏移*/
 
 	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_SCHED_TSTAMP))
 		__skb_tstamp_tx(skb, NULL, skb->sk, SCM_TSTAMP_SCHED);
@@ -3133,7 +3133,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	/* If device/qdisc don't need skb->dst, release it right now while
 	 * its hot in this cpu cache.
 	 */
-	if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
+	if (dev->priv_flags & IFF_XMIT_DST_RELEASE) /*释放dst对象*/
 		skb_dst_drop(skb);
 	else
 		skb_dst_force(skb);
@@ -3220,7 +3220,7 @@ out:
 	return rc;
 }
 
-int dev_queue_xmit(struct sk_buff *skb)
+int dev_queue_xmit(struct sk_buff *skb)/*二层报文发送函数*/
 {
 	return __dev_queue_xmit(skb, NULL);
 }
@@ -3882,10 +3882,10 @@ static int __netif_receive_skb_core(struct sk_buff *skb, bool pfmemalloc)
 
 	orig_dev = skb->dev;
 
-	skb_reset_network_header(skb);
+	skb_reset_network_header(skb);/*重置network_header 此时skb指向IP头 没有vlan的情况下*/
 	if (!skb_transport_header_was_set(skb))
-		skb_reset_transport_header(skb);
-	skb_reset_mac_len(skb);
+		skb_reset_transport_header(skb);/*传输层*/
+	skb_reset_mac_len(skb);  /*重置mac len*/
 
 	pt_prev = NULL;
 
@@ -3895,8 +3895,8 @@ another_round:
 	__this_cpu_inc(softnet_data.processed);
 
 	if (skb->protocol == cpu_to_be16(ETH_P_8021Q) ||
-	    skb->protocol == cpu_to_be16(ETH_P_8021AD)) {
-		skb = skb_vlan_untag(skb);
+	    skb->protocol == cpu_to_be16(ETH_P_8021AD)) {/*vxlan 报文处理*/
+		skb = skb_vlan_untag(skb);/*去掉vlan头*/
 		if (unlikely(!skb))
 			goto out;
 	}
@@ -3916,16 +3916,16 @@ another_round:
 	}
 #endif
 
-	if (pfmemalloc)
+	if (pfmemalloc)/*这就是第二个参数 如果为true 就跳过下面的处理 不能被tcpdump捕获*/
 		goto skip_taps;
 
-	list_for_each_entry_rcu(ptype, &ptype_all, list) {
-		if (pt_prev)
+	list_for_each_entry_rcu(ptype, &ptype_all, list) {/*遍历ptype_all  如果有则做相应处理 如 tcpdump*/
+		if (pt_prev)                                    /**/
 			ret = deliver_skb(skb, pt_prev, orig_dev);
 		pt_prev = ptype;
 	}
 
-	list_for_each_entry_rcu(ptype, &skb->dev->ptype_all, list) {
+	list_for_each_entry_rcu(ptype, &skb->dev->ptype_all, list) {/*设备上注册了相应的协议  做更细的处理*/
 		if (pt_prev)
 			ret = deliver_skb(skb, pt_prev, orig_dev);
 		pt_prev = ptype;
@@ -3959,10 +3959,10 @@ ncls:
 		else if (unlikely(!skb))
 			goto out;
 	}
-
-	rx_handler = rcu_dereference(skb->dev->rx_handler);
-	if (rx_handler) {
-		if (pt_prev) {
+                                       /*br_if.c 一个设备加入桥时 br_add_if() netdev_rx_handler_register() 就会赋值相应的函数  */
+	rx_handler = rcu_dereference(skb->dev->rx_handler);/* 设备rx_handle 桥上的包就会在这里处理 比如一个接口加入了桥 他的*/
+	if (rx_handler) {                                   /*dev->rx_handler 就会被赋值 这里调用该处理函数*/
+		if (pt_prev) {                                  
 			ret = deliver_skb(skb, pt_prev, orig_dev);
 			pt_prev = NULL;
 		}
@@ -3995,24 +3995,24 @@ ncls:
 
 	/* deliver only exact match when indicated */
 	if (likely(!deliver_exact)) {
-		deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type,
+		deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type,/*根据全局定义的协议处理报文 */
 				       &ptype_base[ntohs(type) &
 						   PTYPE_HASH_MASK]);
 	}
 
-	deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type,
+	deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type, /*根据设备上注册的协议处理报文*/
 			       &orig_dev->ptype_specific);
 
 	if (unlikely(skb->dev != orig_dev)) {
 		deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type,
-				       &skb->dev->ptype_specific);
+				       &skb->dev->ptype_specific); /*如果设备发生变化 那么还需要根据新设备进行处理*/
 	}
 
 	if (pt_prev) {
 		if (unlikely(skb_orphan_frags(skb, GFP_ATOMIC)))
 			goto drop;
 		else
-			ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
+			ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);/*调用协议处理*/
 	} else {
 drop:
 		atomic_long_inc(&skb->dev->rx_dropped);
@@ -4047,7 +4047,7 @@ static int __netif_receive_skb(struct sk_buff *skb)
 		ret = __netif_receive_skb_core(skb, true);
 		tsk_restore_flags(current, pflags, PF_MEMALLOC);
 	} else
-		ret = __netif_receive_skb_core(skb, false);
+		ret = __netif_receive_skb_core(skb, false);/*安全 根据第二个参数会决定这个包是否能被tcpdump等程序捕获*/
 
 	return ret;
 }
@@ -4066,10 +4066,10 @@ static int netif_receive_skb_internal(struct sk_buff *skb)
 #ifdef CONFIG_RPS
 	if (static_key_false(&rps_needed)) {
 		struct rps_dev_flow voidflow, *rflow = &voidflow;
-		int cpu = get_rps_cpu(skb->dev, skb, &rflow);
+		int cpu = get_rps_cpu(skb->dev, skb, &rflow); /*如果支持RPS*/
 
 		if (cpu >= 0) {
-			ret = enqueue_to_backlog(skb, cpu, &rflow->last_qtail);
+			ret = enqueue_to_backlog(skb, cpu, &rflow->last_qtail); /*交给相应的CPU处理*/
 			rcu_read_unlock();
 			return ret;
 		}
@@ -4095,7 +4095,7 @@ static int netif_receive_skb_internal(struct sk_buff *skb)
  *	NET_RX_SUCCESS: no congestion
  *	NET_RX_DROP: packet was dropped
  */
-int netif_receive_skb(struct sk_buff *skb)
+int netif_receive_skb(struct sk_buff *skb)/*协议栈的入口函数  网卡驱动调用这个函数向协议栈传输报文*/
 {
 	trace_netif_receive_skb_entry(skb);
 

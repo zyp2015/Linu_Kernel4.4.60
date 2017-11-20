@@ -101,13 +101,13 @@ int __ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb)
 	struct iphdr *iph = ip_hdr(skb);
 
 	iph->tot_len = htons(skb->len);
-	ip_send_check(iph);
+	ip_send_check(iph);/*ip头部校验和检查*/
 
 	skb->protocol = htons(ETH_P_IP);
 
 	return nf_hook(NFPROTO_IPV4, NF_INET_LOCAL_OUT,
 		       net, sk, skb, NULL, skb_dst(skb)->dev,
-		       dst_output);
+		       dst_output);/*经过netfilter处理后调用dst_output*/
 }
 
 int ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb)
@@ -210,7 +210,7 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 	if (unlikely(!neigh))
 		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false);
 	if (!IS_ERR(neigh)) {
-		int res = dst_neigh_output(dst, neigh, skb);
+		int res = dst_neigh_output(dst, neigh, skb); /*调用邻居子系统封装MAC头 并调用二层发送函数完成发包*/
 
 		rcu_read_unlock_bh();
 		return res;
@@ -231,7 +231,7 @@ static int ip_finish_output_gso(struct net *net, struct sock *sk,
 	int ret = 0;
 
 	/* common case: locally created skb or seglen is <= mtu */
-	if (((IPCB(skb)->flags & IPSKB_FORWARDED) == 0) ||
+	if (((IPCB(skb)->flags & IPSKB_FORWARDED) == 0) ||/*只有forward流程才不会成立 其他都成立*/
 	      skb_gso_network_seglen(skb) <= mtu)
 		return ip_finish_output2(net, sk, skb);
 
@@ -242,9 +242,9 @@ static int ip_finish_output_gso(struct net *net, struct sock *sk,
 	 * 2) skb arrived via virtio-net, we thus get TSO/GSO skbs directly
 	 * from host network stack.
 	 */
-	features = netif_skb_features(skb);
+	features = netif_skb_features(skb);/*获取dev的offload feature*/
 	BUILD_BUG_ON(sizeof(*IPCB(skb)) > SKB_SGO_CB_OFFSET);
-	segs = skb_gso_segment(skb, features & ~NETIF_F_GSO_MASK);
+	segs = skb_gso_segment(skb, features & ~NETIF_F_GSO_MASK);/*GSO分段*/
 	if (IS_ERR_OR_NULL(segs)) {
 		kfree_skb(skb);
 		return -ENOMEM;
@@ -257,7 +257,7 @@ static int ip_finish_output_gso(struct net *net, struct sock *sk,
 		int err;
 
 		segs->next = NULL;
-		err = ip_fragment(net, sk, segs, mtu, ip_finish_output2);
+		err = ip_fragment(net, sk, segs, mtu, ip_finish_output2);/*报文经过分片后经过 ip_finish_output2 发送*/
 
 		if (err && ret == 0)
 			ret = err;
@@ -273,9 +273,9 @@ static int ip_finish_output(struct net *net, struct sock *sk, struct sk_buff *sk
 
 #if defined(CONFIG_NETFILTER) && defined(CONFIG_XFRM)
 	/* Policy lookup after SNAT yielded a new policy */
-	if (skb_dst(skb)->xfrm) {
-		IPCB(skb)->flags |= IPSKB_REROUTED;
-		return dst_output(net, sk, skb);
+	if (skb_dst(skb)->xfrm) {/*经过forward处理后的就代xfrm*/
+		IPCB(skb)->flags |= IPSKB_REROUTED;/*这个flags会影响后面GSO处理报文*/
+		return dst_output(net, sk, skb); /*由于SNAT影响 需再次调用这个函数发包*/
 	}
 #endif
 	mtu = ip_skb_dst_mtu(skb);
@@ -357,11 +357,11 @@ int ip_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 	IP_UPD_PO_STATS(net, IPSTATS_MIB_OUT, skb->len);
 
 	skb->dev = dev;
-	skb->protocol = htons(ETH_P_IP);
+	skb->protocol = htons(ETH_P_IP); /*设置报文协议为IP协议*/
 
 	return NF_HOOK_COND(NFPROTO_IPV4, NF_INET_POST_ROUTING,
 			    net, sk, skb, NULL, dev,
-			    ip_finish_output,
+			    ip_finish_output,/*经过netfilter处理  允许就调用 ip_finish_output 作后续处理*/
 			    !(IPCB(skb)->flags & IPSKB_REROUTED));
 }
 

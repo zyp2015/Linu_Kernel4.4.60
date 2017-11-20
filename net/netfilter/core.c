@@ -96,19 +96,19 @@ int nf_register_net_hook(struct net *net, const struct nf_hook_ops *reg)
 
 	entry->orig_ops	= reg;
 	entry->ops	= *reg;
-
-	hook_list = nf_find_hook_list(net, reg); /*hook×¢²áÕæÕýµÄº¯Êý  ¶Ô±È2.X 3.XµÄ°æ±¾¸ÄÁËÐí¶à ¸Ð¾õ*/
+                                                /*¸ù¾Ý reg ·µ»ØÏàÓ¦Ð­Òé×å ºÍ ÏàÓ¦hookµãµÄÁ´±íÍ·*/
+	hook_list = nf_find_hook_list(net, reg); /*ÔÚÕâ¸öÍøÂç¿Õ¼äÖÐÕÒµ½´æ´¢È«¾Ö¹³×Óº¯ÊýµÄÊý×é ²¢·µ»ØÏàÓ¦Ð­Òé×åºÍ¶ÔÓÚ¹³×ÓµãµÄ¹³×Óº¯ÊýµÄÁ´±íÍ·*/
 	if (!hook_list) {
 		kfree(entry);
 		return -ENOENT;
 	}
 
 	mutex_lock(&nf_hook_mutex);
-	list_for_each_entry(elem, hook_list, list) {
-		if (reg->priority < elem->priority)
+	list_for_each_entry(elem, hook_list, list) {/*hook_list¾ÍÊÇÁ´±íÍ· */
+		if (reg->priority < elem->priority)/*¸ù¾ÝÓÅÏÈ¼¶²åÈë¹³×Óº¯Êý*/
 			break;
 	}
-	list_add_rcu(&entry->ops.list, elem->list.prev);
+	list_add_rcu(&entry->ops.list, elem->list.prev); /*½«Òª×¢²áµÄ¹³×Óº¯Êý¼ÓÈë¹³×Óº¯ÊýÁ´±í*/
 	mutex_unlock(&nf_hook_mutex);
 #ifdef CONFIG_NETFILTER_INGRESS
 	if (reg->pf == NFPROTO_NETDEV && reg->hooknum == NF_NETDEV_INGRESS)
@@ -189,14 +189,14 @@ EXPORT_SYMBOL(nf_unregister_net_hooks);
 
 static LIST_HEAD(nf_hook_list);
 
-int nf_register_hook(struct nf_hook_ops *reg)
+int nf_register_hook(struct nf_hook_ops *reg)/*×¢²á¹³×Óº¯Êý*/
 {
 	struct net *net, *last;
 	int ret;
 
 	rtnl_lock();
 	for_each_net(net) {
-		ret = nf_register_net_hook(net, reg);/*å?å?å?å?å?ÎªÊ²Ã´*/
+		ret = nf_register_net_hook(net, reg);/*±éÀúÍøÂç¿Õ¼ä ¶ÔÃ¿¸öÍøÂç¿Õ¼ä¶¼×¢²áÏàÓ¦µÄ¹³×Óº¯Êý*/
 		if (ret && ret != -ENOENT)
 			goto rollback;
 	}
@@ -455,7 +455,7 @@ static int __net_init netfilter_net_init(struct net *net)
 		return -ENOMEM;
 	}
 #endif
-	ret = nf_register_hook_list(net);
+	ret = nf_register_hook_list(net);/*³õÊ¼»¯×¢²á¹³×Óº¯Êý*/
 	if (ret)
 		remove_proc_entry("netfilter", net->proc_net);
 
