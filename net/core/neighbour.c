@@ -286,15 +286,15 @@ static struct neighbour *neigh_alloc(struct neigh_table *tbl, struct net_device 
 	if (!n)
 		goto out_entries;
 
-	__skb_queue_head_init(&n->arp_queue);
+	__skb_queue_head_init(&n->arp_queue);/*初始化arp_queue队列*/
 	rwlock_init(&n->lock);
 	seqlock_init(&n->ha_lock);
 	n->updated	  = n->used = now;
-	n->nud_state	  = NUD_NONE;
-	n->output	  = neigh_blackhole;
+	n->nud_state	  = NUD_NONE;/*状态不可用*/
+	n->output	  = neigh_blackhole;/*直接丢弃报文*/
 	seqlock_init(&n->hh.hh_lock);
-	n->parms	  = neigh_parms_clone(&tbl->parms);
-	setup_timer(&n->timer, neigh_timer_handler, (unsigned long)n);
+	n->parms	  = neigh_parms_clone(&tbl->parms);/*拷贝neigh_table中的parms*/
+	setup_timer(&n->timer, neigh_timer_handler, (unsigned long)n);/*注册定时器*/
 
 	NEIGH_CACHE_STAT_INC(tbl, allocs);
 	n->tbl		  = tbl;
@@ -454,7 +454,7 @@ struct neighbour *__neigh_create(struct neigh_table *tbl, const void *pkey,
 	u32 hash_val;
 	int key_len = tbl->key_len;
 	int error;
-	struct neighbour *n1, *rc, *n = neigh_alloc(tbl, dev);
+	struct neighbour *n1, *rc, *n = neigh_alloc(tbl, dev);/*创建邻居表对象*/
 	struct neigh_hash_table *nht;
 
 	if (!n) {
@@ -467,12 +467,12 @@ struct neighbour *__neigh_create(struct neigh_table *tbl, const void *pkey,
 	dev_hold(dev);
 
 	/* Protocol specific setup. */
-	if (tbl->constructor &&	(error = tbl->constructor(n)) < 0) {
+	if (tbl->constructor &&	(error = tbl->constructor(n)) < 0) {/*IPV4实际调用arp_constructor函数，设置output函数*/
 		rc = ERR_PTR(error);
 		goto out_neigh_release;
 	}
 
-	if (dev->netdev_ops->ndo_neigh_construct) {
+	if (dev->netdev_ops->ndo_neigh_construct) {/*一般设备不设置该变量  */
 		error = dev->netdev_ops->ndo_neigh_construct(n);
 		if (error < 0) {
 			rc = ERR_PTR(error);
@@ -482,7 +482,7 @@ struct neighbour *__neigh_create(struct neigh_table *tbl, const void *pkey,
 
 	/* Device specific setup. */
 	if (n->parms->neigh_setup &&
-	    (error = n->parms->neigh_setup(n)) < 0) {
+	    (error = n->parms->neigh_setup(n)) < 0) {/*IPV4未定义该函数*/
 		rc = ERR_PTR(error);
 		goto out_neigh_release;
 	}
@@ -496,14 +496,14 @@ struct neighbour *__neigh_create(struct neigh_table *tbl, const void *pkey,
 	if (atomic_read(&tbl->entries) > (1 << nht->hash_shift))
 		nht = neigh_hash_grow(tbl, nht->hash_shift + 1);
 
-	hash_val = tbl->hash(pkey, dev, nht->hash_rnd) >> (32 - nht->hash_shift);
+	hash_val = tbl->hash(pkey, dev, nht->hash_rnd) >> (32 - nht->hash_shift);/*计算hash值 计算方式由邻居表定义  */
 
 	if (n->parms->dead) {
 		rc = ERR_PTR(-EINVAL);
 		goto out_tbl_unlock;
 	}
 
-	for (n1 = rcu_dereference_protected(nht->hash_buckets[hash_val],
+	for (n1 = rcu_dereference_protected(nht->hash_buckets[hash_val],/*找到有相同hash值的neighbour链表*/
 					    lockdep_is_held(&tbl->lock));
 	     n1 != NULL;
 	     n1 = rcu_dereference_protected(n1->next,
@@ -521,7 +521,7 @@ struct neighbour *__neigh_create(struct neigh_table *tbl, const void *pkey,
 		neigh_hold(n);
 	rcu_assign_pointer(n->next,
 			   rcu_dereference_protected(nht->hash_buckets[hash_val],
-						     lockdep_is_held(&tbl->lock)));
+						     lockdep_is_held(&tbl->lock)));/*插入到链表中 */
 	rcu_assign_pointer(nht->hash_buckets[hash_val], n);
 	write_unlock_bh(&tbl->lock);
 	neigh_dbg(2, "neigh %p is created\n", n);
@@ -854,15 +854,19 @@ static void neigh_invalidate(struct neighbour *neigh)
 static void neigh_probe(struct neighbour *neigh)
 	__releases(neigh->lock)
 {
-	struct sk_buff *skb = skb_peek_tail(&neigh->arp_queue);
+	struct sk_buff *skb = skb_peek_tail(&neigh->arp_queue);/*取出报文*/
 	/* keep skb alive even if arp_queue overflows */
 	if (skb)
-		skb = skb_clone(skb, GFP_ATOMIC);
+		skb = skb_clone(skb, GFP_ATOMIC);/*克隆一份*/
 	write_unlock(&neigh->lock);
-	neigh->ops->solicit(neigh, skb);
+	neigh->ops->solicit(neigh, skb);/*实际调用arp_solicit函数，该函数会发送arp请求*/
 	atomic_inc(&neigh->probes);
 	kfree_skb(skb);
 }
+/*从上述函数可以看到，报文并没有被发送出去，做了3个事情：1）发送了arp请求， 2）缓存了报文，3）启动定时器500毫秒后执行。 
+报文被丢弃了？ 没有，其实报文是在neigh_update函数中被发送的，该函数的一个调用者是arp处理函数。 调用neigh_update函数后，
+neigh的output函数被改变，在这个之前，ouput函数仍然是neigh_resolve_output，如果是同一个目的IP，不会再次发送arp请求，
+仅仅把报文缓存起来，下面我们来看下neigh_update函数：*/
 
 /* Called when a timer expires for a neighbour entry. */
 
@@ -965,18 +969,18 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 	if (neigh->dead)
 		goto out_dead;
 
-	if (!(neigh->nud_state & (NUD_STALE | NUD_INCOMPLETE))) {
+	if (!(neigh->nud_state & (NUD_STALE | NUD_INCOMPLETE))) {/*初始阶段进入此分支*/
 		if (NEIGH_VAR(neigh->parms, MCAST_PROBES) +
 		    NEIGH_VAR(neigh->parms, APP_PROBES)) {
 			unsigned long next, now = jiffies;
 
 			atomic_set(&neigh->probes,
 				   NEIGH_VAR(neigh->parms, UCAST_PROBES));
-			neigh->nud_state     = NUD_INCOMPLETE;
+			neigh->nud_state     = NUD_INCOMPLETE;/*设置表项状态为incomplete */
 			neigh->updated = now;
 			next = now + max(NEIGH_VAR(neigh->parms, RETRANS_TIME),
 					 HZ/2);
-			neigh_add_timer(neigh, next);
+			neigh_add_timer(neigh, next); /*触发定时器，期望刷新表项状态和output函数，500毫秒后执行 */
 			immediate_probe = true;
 		} else {
 			neigh->nud_state = NUD_FAILED;
@@ -997,7 +1001,7 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 	if (neigh->nud_state == NUD_INCOMPLETE) {
 		if (skb) {
 			while (neigh->arp_queue_len_bytes + skb->truesize >
-			       NEIGH_VAR(neigh->parms, QUEUE_LEN_BYTES)) {
+			       NEIGH_VAR(neigh->parms, QUEUE_LEN_BYTES)) {/*如果等待发送的报文数量超过设定值，丢弃报文  */
 				struct sk_buff *buff;
 
 				buff = __skb_dequeue(&neigh->arp_queue);
@@ -1008,14 +1012,14 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 				NEIGH_CACHE_STAT_INC(neigh->tbl, unres_discards);
 			}
 			skb_dst_force(skb);
-			__skb_queue_tail(&neigh->arp_queue, skb);
+			__skb_queue_tail(&neigh->arp_queue, skb);/*报文放入arp_queue队列中*/
 			neigh->arp_queue_len_bytes += skb->truesize;
 		}
 		rc = 1;
 	}
 out_unlock_bh:
-	if (immediate_probe)
-		neigh_probe(neigh);
+	if (immediate_probe)/*初始阶段，邻居项设置状态设置为incomplete，同时设置该变量为true */
+		neigh_probe(neigh);/*探测邻居表*/
 	else
 		write_unlock(&neigh->lock);
 	local_bh_enable();
@@ -1203,16 +1207,16 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
 	if (new == old)
 		goto out;
 	if (new & NUD_CONNECTED)
-		neigh_connect(neigh);
+		neigh_connect(neigh);/*修改output函数为neigh_connected_output*/
 	else
 		neigh_suspect(neigh);
-	if (!(old & NUD_VALID)) {
+	if (!(old & NUD_VALID)) {/*如果源状态不为valid，则发送缓存的skb*/
 		struct sk_buff *skb;
 
 		/* Again: avoid dead loop if something went wrong */
 
 		while (neigh->nud_state & NUD_VALID &&
-		       (skb = __skb_dequeue(&neigh->arp_queue)) != NULL) {
+		       (skb = __skb_dequeue(&neigh->arp_queue)) != NULL) {/*取出缓冲报文*/
 			struct dst_entry *dst = skb_dst(skb);
 			struct neighbour *n2, *n1 = neigh;
 			write_unlock_bh(&neigh->lock);
@@ -1232,14 +1236,14 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
 				if (n2)
 					n1 = n2;
 			}
-			n1->output(n1, skb);
+			n1->output(n1, skb);/*调用neigh的output函数，此时已经改成neigh_connected_output函数*/
 			if (n2)
 				neigh_release(n2);
 			rcu_read_unlock();
 
 			write_lock_bh(&neigh->lock);
 		}
-		__skb_queue_purge(&neigh->arp_queue);
+		__skb_queue_purge(&neigh->arp_queue);/*清空缓存*/
 		neigh->arp_queue_len_bytes = 0;
 	}
 out:
@@ -1314,23 +1318,23 @@ int neigh_resolve_output(struct neighbour *neigh, struct sk_buff *skb)
 {
 	int rc = 0;
 
-	if (!neigh_event_send(neigh, skb)) {
+	if (!neigh_event_send(neigh, skb)) {/*发送ARP请求*/
 		int err;
 		struct net_device *dev = neigh->dev;
 		unsigned int seq;
 
 		if (dev->header_ops->cache && !neigh->hh.hh_len)
-			neigh_hh_init(neigh);
+			neigh_hh_init(neigh);/*初始化MAC缓存值 目的是加速*/
 
 		do {
-			__skb_pull(skb, skb_network_offset(skb));
+			__skb_pull(skb, skb_network_offset(skb));/*常见情况 skb指向network header*/
 			seq = read_seqbegin(&neigh->ha_lock);
-			err = dev_hard_header(skb, dev, ntohs(skb->protocol),
+			err = dev_hard_header(skb, dev, ntohs(skb->protocol),/*封装MAC头*/
 					      neigh->ha, NULL, skb->len);
 		} while (read_seqretry(&neigh->ha_lock, seq));
 
 		if (err >= 0)
-			rc = dev_queue_xmit(skb);
+			rc = dev_queue_xmit(skb);/*调用二层发包函数*/
 		else
 			goto out_kfree_skb;
 	}

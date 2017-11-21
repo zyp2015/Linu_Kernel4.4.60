@@ -3776,7 +3776,7 @@ static inline netdev_tx_t __netdev_start_xmit(const struct net_device_ops *ops,
 					      bool more)
 {
 	skb->xmit_more = more ? 1 : 0;
-	return ops->ndo_start_xmit(skb, dev);
+	return ops->ndo_start_xmit(skb, dev);/*调用设备的驱动函数发送报文 validate_xmit_skb_list */
 }
 
 static inline netdev_tx_t netdev_start_xmit(struct sk_buff *skb, struct net_device *dev,
@@ -3785,7 +3785,7 @@ static inline netdev_tx_t netdev_start_xmit(struct sk_buff *skb, struct net_devi
 	const struct net_device_ops *ops = dev->netdev_ops;
 	int rc;
 
-	rc = __netdev_start_xmit(ops, skb, dev, more);
+	rc = __netdev_start_xmit(ops, skb, dev, more);/*发送报文*/
 	if (rc == NETDEV_TX_OK)
 		txq_trans_update(txq);
 
@@ -3817,12 +3817,12 @@ static inline netdev_features_t netdev_intersect_features(netdev_features_t f1,
 							  netdev_features_t f2)
 {
 	if (f1 & NETIF_F_GEN_CSUM)
-		f1 |= (NETIF_F_ALL_CSUM & ~NETIF_F_GEN_CSUM);
+		f1 |= (NETIF_F_ALL_CSUM & ~NETIF_F_GEN_CSUM); //添加NETIF_F_V4_CSUM | NETIF_F_V6_CSUM 标记
 	if (f2 & NETIF_F_GEN_CSUM)
-		f2 |= (NETIF_F_ALL_CSUM & ~NETIF_F_GEN_CSUM);
-	f1 &= f2;
+		f2 |= (NETIF_F_ALL_CSUM & ~NETIF_F_GEN_CSUM); //添加NETIF_F_V4_CSUM | NETIF_F_V6_CSUM 标记
+	f1 &= f2;  //取交集
 	if (f1 & NETIF_F_GEN_CSUM)
-		f1 &= ~(NETIF_F_ALL_CSUM & ~NETIF_F_GEN_CSUM);
+		f1 &= ~(NETIF_F_ALL_CSUM & ~NETIF_F_GEN_CSUM); //删除NETIF_F_V4_CSUM | NETIF_F_V6_CSUM 标记  
 
 	return f1;
 }
@@ -3876,20 +3876,20 @@ static inline bool net_gso_ok(netdev_features_t features, int gso_type)
 	BUILD_BUG_ON(SKB_GSO_UDP_TUNNEL_CSUM != (NETIF_F_GSO_UDP_TUNNEL_CSUM >> NETIF_F_GSO_SHIFT));
 	BUILD_BUG_ON(SKB_GSO_TUNNEL_REMCSUM != (NETIF_F_GSO_TUNNEL_REMCSUM >> NETIF_F_GSO_SHIFT));
 
-	return (features & feature) == feature;
+	return (features & feature) == feature; //features 包含feature  
 }
 
 static inline bool skb_gso_ok(struct sk_buff *skb, netdev_features_t features)
 {
-	return net_gso_ok(features, skb_shinfo(skb)->gso_type) &&
+	return net_gso_ok(features, skb_shinfo(skb)->gso_type) &&//feature包含gso_type 并且skb没有frag_list或者feature包含NETIF_F_FRAGLIST
 	       (!skb_has_frag_list(skb) || (features & NETIF_F_FRAGLIST));
 }
 
 static inline bool netif_needs_gso(struct sk_buff *skb,
 				   netdev_features_t features)
 {
-	return skb_is_gso(skb) && (!skb_gso_ok(skb, features) ||
-		unlikely((skb->ip_summed != CHECKSUM_PARTIAL) &&
+	return skb_is_gso(skb) && (!skb_gso_ok(skb, features) ||/*skb 为gso报文，且feature不包含skb->gso_type或者*/ 
+		unlikely((skb->ip_summed != CHECKSUM_PARTIAL) && /*skb 为gso报文，且skb_ipsummed不为CHECKSUM_PARTIAL和CHECKSUM_UNNECESSARY*/
 			 (skb->ip_summed != CHECKSUM_UNNECESSARY)));
 }
 

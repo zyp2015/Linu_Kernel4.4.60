@@ -449,10 +449,10 @@ static inline int dst_neigh_output(struct dst_entry *dst, struct neighbour *n,
 	}
 
 	hh = &n->hh;
-	if ((n->nud_state & NUD_CONNECTED) && hh->hh_len)
+	if ((n->nud_state & NUD_CONNECTED) && hh->hh_len)/*如果neighbour已连接且hh已设置*/
 		return neigh_hh_output(hh, skb);
-	else
-		return n->output(n, skb);
+	else 
+		return n->output(n, skb);/*初始阶段调用此函数，此时为neigh_resolve_output函数*/
 }
 
 static inline struct neighbour *dst_neigh_lookup(const struct dst_entry *dst, const void *daddr)
@@ -495,7 +495,7 @@ static inline int dst_output(struct net *net, struct sock *sk, struct sk_buff *s
 /* Input packet from network to transport.  */
 static inline int dst_input(struct sk_buff *skb)
 {
-	return skb_dst(skb)->input(skb);
+	return skb_dst(skb)->input(skb);/*后续处理  本机处理为ip_local_deliver，转发为ip_forward  这里的函数赋值应该是在路由查询中完成的*/
 }
 
 static inline struct dst_entry *dst_check(struct dst_entry *dst, u32 cookie)

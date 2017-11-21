@@ -1975,7 +1975,7 @@ int ip_route_input_noref(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	   Note, that multicast routers are not affected, because
 	   route cache entry is created eventually.
 	 */
-	if (ipv4_is_multicast(daddr)) {
+	if (ipv4_is_multicast(daddr)) {/*判断是否是多播地址 多播处理*/
 		struct in_device *in_dev = __in_dev_get_rcu(dev);
 
 		if (in_dev) {

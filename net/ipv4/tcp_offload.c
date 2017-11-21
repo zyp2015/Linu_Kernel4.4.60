@@ -37,7 +37,7 @@ static struct sk_buff *tcp4_gso_segment(struct sk_buff *skb,
 
 	if (unlikely(skb->ip_summed != CHECKSUM_PARTIAL)) {
 		const struct iphdr *iph = ip_hdr(skb);
-		struct tcphdr *th = tcp_hdr(skb);
+		struct tcphdr *th = tcp_hdr(skb); /*IP层保证了transport header 的值*/
 
 		/* Set up checksum pseudo header, usually expect stack to
 		 * have done this already.
@@ -45,10 +45,10 @@ static struct sk_buff *tcp4_gso_segment(struct sk_buff *skb,
 
 		th->check = 0;
 		skb->ip_summed = CHECKSUM_PARTIAL;
-		__tcp_v4_send_check(skb, iph->saddr, iph->daddr);
+		__tcp_v4_send_check(skb, iph->saddr, iph->daddr);/*计算伪头部值*/
 	}
 
-	return tcp_gso_segment(skb, features);
+	return tcp_gso_segment(skb, features);/*GSO 分段*/
 }
 
 struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
@@ -67,7 +67,7 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 	bool ooo_okay, copy_destructor;
 
 	th = tcp_hdr(skb);
-	thlen = th->doff * 4;
+	thlen = th->doff * 4;/*得到TCP头部长度*/
 	if (thlen < sizeof(*th))
 		goto out;
 
@@ -75,9 +75,9 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 		goto out;
 
 	oldlen = (u16)~skb->len;
-	__skb_pull(skb, thlen);
+	__skb_pull(skb, thlen); /*SKB移到数据区*/
 
-	mss = skb_shinfo(skb)->gso_size;
+	mss = skb_shinfo(skb)->gso_size; /*得到MSS值*/
 	if (unlikely(skb->len <= mss))
 		goto out;
 
@@ -101,7 +101,7 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 			     !(type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6))))
 			goto out;
 
-		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss);
+		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss);/*如果报文来源不可信，则重新计算segs，返回  */
 
 		segs = NULL;
 		goto out;
@@ -112,31 +112,31 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 	/* All segments but the first should have ooo_okay cleared */
 	skb->ooo_okay = 0;
 
-	segs = skb_segment(skb, features);
+	segs = skb_segment(skb, features); /*调用payload根据mss值分段*/
 	if (IS_ERR(segs))
 		goto out;
 
 	/* Only first segment might have ooo_okay set */
 	segs->ooo_okay = ooo_okay;
 
-	delta = htonl(oldlen + (thlen + mss));
+	delta = htonl(oldlen + (thlen + mss)); /*TCP头+mss - 原始报文，该值为负值*/
 
 	skb = segs;
-	th = tcp_hdr(skb);
+	th = tcp_hdr(skb); /*skb_segment分段后，可以直接从skb中获取tcp头， skb_segment或udp4_ufo_fragment保证  */
 	seq = ntohl(th->seq);
 
 	if (unlikely(skb_shinfo(gso_skb)->tx_flags & SKBTX_SW_TSTAMP))
 		tcp_gso_tstamp(segs, skb_shinfo(gso_skb)->tskey, seq, mss);
 
 	newcheck = ~csum_fold((__force __wsum)((__force u32)th->check +
-					       (__force u32)delta));
+					       (__force u32)delta));/*第一个报文基于原先值，根据delta快速计算  */
 
-	do {
+	do {/*刷新分段后报文的TCP头设置 */
 		th->fin = th->psh = 0;
 		th->check = newcheck;
 
 		if (skb->ip_summed != CHECKSUM_PARTIAL)
-			th->check = gso_make_checksum(skb, ~th->check);
+			th->check = gso_make_checksum(skb, ~th->check);/*校验和计算*/
 
 		seq += mss;
 		if (copy_destructor) {
@@ -165,12 +165,12 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 	}
 
 	delta = htonl(oldlen + (skb_tail_pointer(skb) -
-				skb_transport_header(skb)) +
+				skb_transport_header(skb)) +/*最后一个报文的delta值不同*/
 		      skb->data_len);
 	th->check = ~csum_fold((__force __wsum)((__force u32)th->check +
 				(__force u32)delta));
 	if (skb->ip_summed != CHECKSUM_PARTIAL)
-		th->check = gso_make_checksum(skb, ~th->check);
+		th->check = gso_make_checksum(skb, ~th->check); /*重新计算校验和*/
 out:
 	return segs;
 }
@@ -315,8 +315,8 @@ static int tcp4_gro_complete(struct sk_buff *skb, int thoff)
 
 static const struct net_offload tcpv4_offload = {
 	.callbacks = {
-		.gso_segment	=	tcp4_gso_segment,
-		.gro_receive	=	tcp4_gro_receive,
+		.gso_segment	=	tcp4_gso_segment, /*TCP GSO分段报文入口函数*/
+		.gro_receive	=	tcp4_gro_receive,/* TCP GSO 报文接收函数*/
 		.gro_complete	=	tcp4_gro_complete,
 	},
 };

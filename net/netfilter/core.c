@@ -97,7 +97,8 @@ int nf_register_net_hook(struct net *net, const struct nf_hook_ops *reg)
 	entry->orig_ops	= reg;
 	entry->ops	= *reg;
                                                 /*¸ù¾İ reg ·µ»ØÏàÓ¦Ğ­Òé×å ºÍ ÏàÓ¦hookµãµÄÁ´±íÍ·*/
-	hook_list = nf_find_hook_list(net, reg); /*ÔÚÕâ¸öÍøÂç¿Õ¼äÖĞÕÒµ½´æ´¢È«¾Ö¹³×Óº¯ÊıµÄÊı×é ²¢·µ»ØÏàÓ¦Ğ­Òé×åºÍ¶ÔÓÚ¹³×ÓµãµÄ¹³×Óº¯ÊıµÄÁ´±íÍ·*/
+	hook_list = nf_find_hook_list(net, reg); /*ÔÚÕâ¸öÍøÂç¿Õ¼äÖĞÕÒµ½´æ´¢È«¾Ö¹³×Óº¯ÊıµÄÊı×é 
+	                                                ²¢·µ»ØÏàÓ¦Ğ­Òé×åºÍ¶ÔÓÚ¹³×ÓµãµÄ¹³×Óº¯ÊıµÄÁ´±íÍ·*/
 	if (!hook_list) {
 		kfree(entry);
 		return -ENOENT;
@@ -200,7 +201,8 @@ int nf_register_hook(struct nf_hook_ops *reg)/*×¢²á¹³×Óº¯Êı*/
 		if (ret && ret != -ENOENT)
 			goto rollback;
 	}
-	list_add_tail(&reg->list, &nf_hook_list);
+	list_add_tail(&reg->list, &nf_hook_list);/*ÕâÀï°ÑÕâ¸ö¹³×Óº¯Êı¼ÓÈëÁËÕâ¸öÁ´±í  Õâ¸öÁ´±íÔÚ³õÊ¼»¯µÄÊ±ºòµ÷ÓÃÁË°¡
+	                                       ÄÑµÀÊÇÔÚĞÂÔöÒ»¸öÍøÂç¿Õ¼äµÄÊ±ºò ³õÊ¼»¯µÄÊ±ºò ¾Í°ÑÒÑ¾­×¢²áµÄ¹³×Óº¯Êı×¢²áµ½Õâ¸öÍøÂç¿Õ¼äå?*/
 	rtnl_unlock();
 
 	return 0;
@@ -411,7 +413,8 @@ static int nf_register_hook_list(struct net *net)
 	int ret;
 
 	rtnl_lock();
-	list_for_each_entry(elem, &nf_hook_list, list) {
+	list_for_each_entry(elem, &nf_hook_list, list) {/*±éÀú nf_hook_list  ÀïÃæºÃÏñÒ²Ã»¶«Î÷°¡ ²»ÖªµÀÎªÊ²Ã´ÒªÕâ¸ö
+	                                                               nf_hook_list Ö»ÓĞÔÚ nf_register_hook µ÷ÓÃÁË°¡ */
 		ret = nf_register_net_hook(net, elem);
 		if (ret && ret != -ENOENT)
 			goto out_undo;
@@ -440,22 +443,23 @@ static int __net_init netfilter_net_init(struct net *net)
 {
 	int i, h, ret;
 
-	for (i = 0; i < ARRAY_SIZE(net->nf.hooks); i++) {
+	for (i = 0; i < ARRAY_SIZE(net->nf.hooks); i++) {/*Ìí¼ÓÄ£¿éÊ± ÎªÃ¿¸öÍøÂç¿Õ¼ä¶¼³õÊ¼»¯ºÃ¹³×Ó´æ´¢Á´±í 
+	                                                           Ô­À´ÊÇÓĞÒ»¸öÈ«¾ÖµÄnf_hooks ÏÖÔÚ¼ÓÈëÁËÍøÂç¿Õ¼ä*/
 		for (h = 0; h < NF_MAX_HOOKS; h++)
-			INIT_LIST_HEAD(&net->nf.hooks[i][h]);
+			INIT_LIST_HEAD(&net->nf.hooks[i][h]);/*³õÊ¼»¯hooks Á´±íÍ· */
 	}
 
 #ifdef CONFIG_PROC_FS
-	net->nf.proc_netfilter = proc_net_mkdir(net, "netfilter",
+	net->nf.proc_netfilter = proc_net_mkdir(net, "netfilter",/*ÔÚ proc net ÏÂ´´½¨netfilterÄ¿Â¼*/
 						net->proc_net);
 	if (!net->nf.proc_netfilter) {
-		if (!net_eq(net, &init_net))
+		if (!net_eq(net, &init_net))/*ÊÇ·ñÊÇµÚÒ»¸öÍøÂç¿Õ¼ä*/
 			pr_err("cannot create netfilter proc entry");
 
 		return -ENOMEM;
 	}
 #endif
-	ret = nf_register_hook_list(net);/*³õÊ¼»¯×¢²á¹³×Óº¯Êı*/
+	ret = nf_register_hook_list(net);/*³õÊ¼»¯Ê±×¢²á¹³×Óº¯Êı ÔİÇÒÕâÃ´Àí½â°É  */
 	if (ret)
 		remove_proc_entry("netfilter", net->proc_net);
 
@@ -477,7 +481,7 @@ int __init netfilter_init(void)
 {
 	int ret;
 
-	ret = register_pernet_subsys(&netfilter_net_ops);
+	ret = register_pernet_subsys(&netfilter_net_ops);/*½«Ò»¸öÄ£¿éÌí¼Óµ½Ã¿Ò»¸öÍøÂç¿Õ¼ä È»ºóÖ´ĞĞopsÖ¸ÏòµÄinitº¯Êı*/
 	if (ret < 0)
 		goto err;
 

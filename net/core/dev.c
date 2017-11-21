@@ -373,7 +373,7 @@ static inline void netdev_set_addr_lockdep_class(struct net_device *dev)
 
 static inline struct list_head *ptype_head(const struct packet_type *pt)
 {
-	if (pt->type == htons(ETH_P_ALL))
+	if (pt->type == htons(ETH_P_ALL))/*根据*/
 		return pt->dev ? &pt->dev->ptype_all : &ptype_all;
 	else
 		return pt->dev ? &pt->dev->ptype_specific :
@@ -2521,24 +2521,24 @@ struct sk_buff *skb_mac_gso_segment(struct sk_buff *skb,
 {
 	struct sk_buff *segs = ERR_PTR(-EPROTONOSUPPORT);
 	struct packet_offload *ptype;
-	int vlan_depth = skb->mac_len;
-	__be16 type = skb_network_protocol(skb, &vlan_depth);
+	int vlan_depth = skb->mac_len; //__skb_gso_segment函数中计算得到 
+	__be16 type = skb_network_protocol(skb, &vlan_depth); //得到skb协议
 
 	if (unlikely(!type))
 		return ERR_PTR(-EINVAL);
 
-	__skb_pull(skb, vlan_depth);
+	__skb_pull(skb, vlan_depth); /*skb data指针移到IP层*/
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(ptype, &offload_base, list) {
 		if (ptype->type == type && ptype->callbacks.gso_segment) {
-			segs = ptype->callbacks.gso_segment(skb, features);
+			segs = ptype->callbacks.gso_segment(skb, features); /* 调用 IP层GSO segment函数*/
 			break;
-		}
+		}/*MAC层的GSO分段，主要初始化了SKB_GSO_CB(skb)对象的数据供后续使用，然后指向IP头并调用IP层的GSO segment函数。*/
 	}
 	rcu_read_unlock();
 
-	__skb_push(skb, skb->data - skb_mac_header(skb));
+	__skb_push(skb, skb->data - skb_mac_header(skb)); /*skb data指针移动到mac层*/
 
 	return segs;
 }
@@ -2571,12 +2571,12 @@ static inline bool skb_needs_check(struct sk_buff *skb, bool tx_path)
 struct sk_buff *__skb_gso_segment(struct sk_buff *skb,
 				  netdev_features_t features, bool tx_path)
 {
-	if (unlikely(skb_needs_check(skb, tx_path))) {
+	if (unlikely(skb_needs_check(skb, tx_path))) {  // 判断等于 skb->ip_summed != CHECKSUM_PARTIAL
 		int err;
 
-		skb_warn_bad_offload(skb);
+		skb_warn_bad_offload(skb); //打印告警信息，说明GSO报文skb->ip_summed == CHECKSUM_PARTIAL
 
-		err = skb_cow_head(skb, 0);
+		err = skb_cow_head(skb, 0);  //如果skb是克隆，则需要重新分配线性区
 		if (err < 0)
 			return ERR_PTR(err);
 	}
@@ -2584,11 +2584,11 @@ struct sk_buff *__skb_gso_segment(struct sk_buff *skb,
 	BUILD_BUG_ON(SKB_SGO_CB_OFFSET +
 		     sizeof(*SKB_GSO_CB(skb)) > sizeof(skb->cb));
 
-	SKB_GSO_CB(skb)->mac_offset = skb_headroom(skb);
-	SKB_GSO_CB(skb)->encap_level = 0;
+	SKB_GSO_CB(skb)->mac_offset = skb_headroom(skb); /*设置mac_offset 用于skb_segment分段拷贝外层报文*/
+	SKB_GSO_CB(skb)->encap_level = 0; /*为0 说明是最外层报文*/
 
-	skb_reset_mac_header(skb);
-	skb_reset_mac_len(skb);
+	skb_reset_mac_header(skb); /*重置 mac_header*/
+	skb_reset_mac_len(skb); /*重置 mac_len*/
 
 	return skb_mac_gso_segment(skb, features);
 }
@@ -2668,14 +2668,14 @@ static netdev_features_t harmonize_features(struct sk_buff *skb,
 	__be16 type;
 
 	type = skb_network_protocol(skb, &tmp);
-	features = net_mpls_features(skb, features, type);
+	features = net_mpls_features(skb, features, type);/*mpls features更新*/
 
 	if (skb->ip_summed != CHECKSUM_NONE &&
 	    !can_checksum_protocol(features, type)) {
-		features &= ~NETIF_F_ALL_CSUM;
+		features &= ~NETIF_F_ALL_CSUM;  //去掉NETIF_F_ALL_CSUM标记  
 	}
 	if (illegal_highdma(skb->dev, skb))
-		features &= ~NETIF_F_SG;
+		features &= ~NETIF_F_SG;   //去掉NETIF_F_SG标记
 
 	return features;
 }
@@ -2695,23 +2695,24 @@ static netdev_features_t dflt_features_check(const struct sk_buff *skb,
 	return vlan_features_check(skb, features);
 }
 
-netdev_features_t netif_skb_features(struct sk_buff *skb)
+netdev_features_t netif_skb_features(struct sk_buff *skb)/*获取 features */ 
 {
 	struct net_device *dev = skb->dev;
-	netdev_features_t features = dev->features;
+	netdev_features_t features = dev->features;/*获取设备的features*/
 	u16 gso_segs = skb_shinfo(skb)->gso_segs;
 
 	if (gso_segs > dev->gso_max_segs || gso_segs < dev->gso_min_segs)
-		features &= ~NETIF_F_GSO_MASK;
+		features &= ~NETIF_F_GSO_MASK; //如果gso_segs不在规定范围内，则去掉NETIF_F_GSO_MASK标记 
 
 	/* If encapsulation offload request, verify we are testing
 	 * hardware encapsulation features instead of standard
 	 * features for the netdev
 	 */
 	if (skb->encapsulation)
-		features &= dev->hw_enc_features;
+		features &= dev->hw_enc_features;//如果是封装报文，则feature需要和hw_enc_features取交集，
+		                                    //主流设备均不支持gso offload能力  
 
-	if (skb_vlan_tagged(skb))
+	if (skb_vlan_tagged(skb))/*vlan报文  刷新features 值*/
 		features = netdev_intersect_features(features,
 						     dev->vlan_features |
 						     NETIF_F_HW_VLAN_CTAG_TX |
@@ -2721,9 +2722,9 @@ netdev_features_t netif_skb_features(struct sk_buff *skb)
 		features &= dev->netdev_ops->ndo_features_check(skb, dev,
 								features);
 	else
-		features &= dflt_features_check(skb, dev, features);
+		features &= dflt_features_check(skb, dev, features);/*刷新 vlan features 最终调用  netdev_intersect_features*/
 
-	return harmonize_features(skb, features);
+	return harmonize_features(skb, features);/*更新mpls feature 和csum feature*/
 }
 EXPORT_SYMBOL(netif_skb_features);
 
@@ -2738,7 +2739,7 @@ static int xmit_one(struct sk_buff *skb, struct net_device *dev,
 	 */
 	if (unlikely(!skb->fast_forwarded)) {
 		if (!list_empty(&ptype_all) || !list_empty(&dev->ptype_all))
-			dev_queue_xmit_nit(skb, dev);
+			dev_queue_xmit_nit(skb, dev);/*根据 ptype_all 中注册的函数处理报文*/
 	}
 
 #ifdef CONFIG_ETHERNET_PACKET_MANGLE
@@ -2750,7 +2751,7 @@ static int xmit_one(struct sk_buff *skb, struct net_device *dev,
 	{
 		len = skb->len;
 		trace_net_dev_start_xmit(skb, dev);
-		rc = netdev_start_xmit(skb, dev, txq, more);
+		rc = netdev_start_xmit(skb, dev, txq, more);/*发送报文*/
 		trace_net_dev_xmit(skb, rc, dev, len);
 	} else {
 		rc = NETDEV_TX_OK;
@@ -2769,7 +2770,7 @@ struct sk_buff *dev_hard_start_xmit(struct sk_buff *first, struct net_device *de
 		struct sk_buff *next = skb->next;
 
 		skb->next = NULL;
-		rc = xmit_one(skb, dev, txq, next != NULL);
+		rc = xmit_one(skb, dev, txq, next != NULL);/*发送一个报文*/
 		if (unlikely(!dev_xmit_complete(rc))) {
 			skb->next = next;
 			goto out;
@@ -2808,10 +2809,10 @@ static struct sk_buff *validate_xmit_skb(struct sk_buff *skb, struct net_device 
 	if (unlikely(!skb))
 		goto out_null;
 
-	if (netif_needs_gso(skb, features)) {
-		struct sk_buff *segs;
-
-		segs = skb_gso_segment(skb, features);
+	if (netif_needs_gso(skb, features)) {/*判断GSO分段条件 主要判断条件是features是否包含skb->gso_type。 */ 
+		struct sk_buff *segs;/*否需要进行GSO分段，主要 两个参数features（硬件支持的特性）和skb报文。*/
+                
+		segs = skb_gso_segment(skb, features);/*GSO二层分段函数入口*/
 		if (IS_ERR(segs)) {
 			goto out_kfree_skb;
 		} else if (segs) {
@@ -2848,7 +2849,7 @@ out_null:
 	return NULL;
 }
 
-struct sk_buff *validate_xmit_skb_list(struct sk_buff *skb, struct net_device *dev)
+struct sk_buff *validate_xmit_skb_list(struct sk_buff *skb, struct net_device *dev)/*注册到设备的函数*/
 {
 	struct sk_buff *next, *head = NULL, *tail;
 
@@ -2859,7 +2860,7 @@ struct sk_buff *validate_xmit_skb_list(struct sk_buff *skb, struct net_device *d
 		/* in case skb wont be segmented, point to itself */
 		skb->prev = skb;
 
-		skb = validate_xmit_skb(skb, dev);
+		skb = validate_xmit_skb(skb, dev);/*校验每一个SKB报文 GSO报文判断和分段入口*/
 		if (!skb)
 			continue;
 
@@ -2922,7 +2923,7 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 	 * This permits __QDISC___STATE_RUNNING owner to get the lock more
 	 * often and dequeue packets faster.
 	 */
-	contended = qdisc_is_running(q);
+	contended = qdisc_is_running(q);/* 判断 qdisc是否运行  也就是QOS*/
 	if (unlikely(contended))
 		spin_lock(&q->busylock);
 
@@ -2931,7 +2932,7 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 		kfree_skb(skb);
 		rc = NET_XMIT_DROP;
 	} else if ((q->flags & TCQ_F_CAN_BYPASS) && !qdisc_qlen(q) &&
-		   qdisc_run_begin(q)) {
+		   qdisc_run_begin(q)) {/*qdisc没有运行 也没有缓存报文 那就直接发送报文*/
 		/*
 		 * This is a work-conserving queue; there are no old skbs
 		 * waiting to be sent out; and the qdisc is not running -
@@ -2945,19 +2946,19 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 				spin_unlock(&q->busylock);
 				contended = false;
 			}
-			__qdisc_run(q);
+			__qdisc_run(q);/*发送disc缓冲队列中的报文，发送报文过程中进的队列*/
 		} else
 			qdisc_run_end(q);
 
 		rc = NET_XMIT_SUCCESS;
 	} else {
-		rc = q->enqueue(skb, q) & NET_XMIT_MASK;
-		if (qdisc_run_begin(q)) {
+		rc = q->enqueue(skb, q) & NET_XMIT_MASK;/*qdisc在运行 或者有缓存报文 则把报文发到qdisc队列*/
+		if (qdisc_run_begin(q)) {/*如果qdisc未运行  则尝试发送报文 否则不处理*/
 			if (unlikely(contended)) {
 				spin_unlock(&q->busylock);
 				contended = false;
 			}
-			__qdisc_run(q);
+			__qdisc_run(q); /*发送 qdisc缓冲中的报文*/
 		}
 	}
 	spin_unlock(root_lock);
@@ -3148,7 +3149,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	}
 #endif
 
-	txq = netdev_pick_tx(dev, skb, accel_priv);
+	txq = netdev_pick_tx(dev, skb, accel_priv);/*获取发送队列 根据报文计算出队列*/
 	q = rcu_dereference_bh(txq->qdisc);
 
 #ifdef CONFIG_NET_CLS_ACT
@@ -3156,7 +3157,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 #endif
 	trace_net_dev_queue(skb);
 	if (q->enqueue) {
-		rc = __dev_xmit_skb(skb, q, dev, txq);
+		rc = __dev_xmit_skb(skb, q, dev, txq);/*发送报文 基本进这个分支*/
 		goto out;
 	}
 
@@ -3188,7 +3189,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 
 			if (!netif_xmit_stopped(txq)) {
 				__this_cpu_inc(xmit_recursion);
-				skb = dev_hard_start_xmit(skb, dev, txq, &rc);
+				skb = dev_hard_start_xmit(skb, dev, txq, &rc);/*调用驱动发送报文*/
 				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
@@ -3686,7 +3687,7 @@ static void net_tx_action(struct softirq_action *h)
 				smp_mb__before_atomic();
 				clear_bit(__QDISC_STATE_SCHED,
 					  &q->state);
-				qdisc_run(q);
+				qdisc_run(q);/*尝试启动qdisc发送报文*/
 				spin_unlock(root_lock);
 			} else {
 				if (!test_bit(__QDISC_STATE_DEACTIVATED,
@@ -4012,7 +4013,7 @@ ncls:
 		if (unlikely(skb_orphan_frags(skb, GFP_ATOMIC)))
 			goto drop;
 		else
-			ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);/*调用协议处理*/
+			ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);/*调用协议处理ip_rcv arp_rcv*/
 	} else {
 drop:
 		atomic_long_inc(&skb->dev->rx_dropped);

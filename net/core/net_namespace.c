@@ -106,7 +106,7 @@ static int ops_init(const struct pernet_operations *ops, struct net *net)
 	}
 	err = 0;
 	if (ops->init)
-		err = ops->init(net);
+		err = ops->init(net);/*最终在这里调用初始化函数*/
 	if (!err)
 		return 0;
 
@@ -777,10 +777,12 @@ static int __register_pernet_operations(struct list_head *list,
 	int error;
 	LIST_HEAD(net_exit_list);
 
-	list_add_tail(&ops->list, list);
+	list_add_tail(&ops->list, list);/*1、将一个网络协议模块对应的数据结构pernet_operations添加到网络空间链路pernet_list的尾部
+2、然后调用for_each_net，为每一个网络命名空间，都执行该网络协议模块的init函数，执行一些初始化操作，
+并在/proc/NameSpace/下生成一个该网络协议模块对应的proc文件或者proc目录 */
 	if (ops->init || (ops->id && ops->size)) {
 		for_each_net(net) {
-			error = ops_init(ops, net);
+			error = ops_init(ops, net);/*在这里调用 传进来的初始化函数 */
 			if (error)
 				goto out_undo;
 			list_add_tail(&net->exit_list, &net_exit_list);
@@ -845,7 +847,8 @@ again:
 		}
 		max_gen_ptrs = max_t(unsigned int, max_gen_ptrs, *ops->id);
 	}
-	error = __register_pernet_operations(list, ops);
+	error = __register_pernet_operations(list, ops);/*支持多网络命令空间时，会调用该函数，该函数会遍历目前已存在的所有网络命名空间，
+	                    将网络协议模块添加到每一个网络命令空间中；并执行init操作，在每一个网络命名空间中，执行协议初始化相关的东东*/
 	if (error) {
 		rcu_barrier();
 		if (ops->id)
@@ -887,7 +890,7 @@ int register_pernet_subsys(struct pernet_operations *ops)
 {
 	int error;
 	mutex_lock(&net_mutex);
-	error =  register_pernet_operations(first_device, ops);
+	error =  register_pernet_operations(first_device, ops);/**/
 	mutex_unlock(&net_mutex);
 	return error;
 }

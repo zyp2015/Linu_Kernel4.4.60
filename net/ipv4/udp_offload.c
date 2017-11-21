@@ -34,7 +34,7 @@ static struct sk_buff *__skb_udp_tunnel_segment(struct sk_buff *skb,
 	struct sk_buff *segs = ERR_PTR(-EINVAL);
 	u16 mac_offset = skb->mac_header;
 	int mac_len = skb->mac_len;
-	int tnl_hlen = skb_inner_mac_header(skb) - skb_transport_header(skb);
+	int tnl_hlen = skb_inner_mac_header(skb) - skb_transport_header(skb);/*vxlan头长度 UDP + vxlan*/
 	__be16 protocol = skb->protocol;
 	netdev_features_t enc_features;
 	int udp_offset, outer_hlen;
@@ -50,11 +50,11 @@ static struct sk_buff *__skb_udp_tunnel_segment(struct sk_buff *skb,
 		goto out;
 
 	skb->encapsulation = 0;
-	__skb_pull(skb, tnl_hlen);
-	skb_reset_mac_header(skb);
-	skb_set_network_header(skb, skb_inner_network_offset(skb));
-	skb->mac_len = skb_inner_network_offset(skb);
-	skb->protocol = new_protocol;
+	__skb_pull(skb, tnl_hlen);/*报文移动到内层报文的MAC头*/
+	skb_reset_mac_header(skb); /*设置SKB的mac header*/
+	skb_set_network_header(skb, skb_inner_network_offset(skb)); /*设置skb的 ip header*/
+	skb->mac_len = skb_inner_network_offset(skb); /*设置 mac len*/
+	skb->protocol = new_protocol; /*设置skb protocol，至此skb已经切换到内层，可以继续进行GSO分段 */
 	skb->encap_hdr_csum = need_csum;
 	skb->remcsum_offload = remcsum;
 
@@ -65,16 +65,16 @@ static struct sk_buff *__skb_udp_tunnel_segment(struct sk_buff *skb,
 
 	/* segment inner packet. */
 	enc_features = skb->dev->hw_enc_features & features;
-	segs = gso_inner_segment(skb, enc_features);
+	segs = gso_inner_segment(skb, enc_features);/*如果是vxlan报文，则重新开始mac层的GSO分段*/
 	if (IS_ERR_OR_NULL(segs)) {
 		skb_gso_error_unwind(skb, protocol, tnl_hlen, mac_offset,
 				     mac_len);
 		goto out;
 	}
 
-	outer_hlen = skb_tnl_header_len(skb);
-	udp_offset = outer_hlen - tnl_hlen;
-	skb = segs;
+	outer_hlen = skb_tnl_header_len(skb);/*计算外层报文的长度*/
+	udp_offset = outer_hlen - tnl_hlen;/*外层UDP头的偏移*/
+	skb = segs; /*此时skb指向内层报文的mac头位置 */
 	do {
 		struct udphdr *uh;
 		int len;
@@ -87,19 +87,19 @@ static struct sk_buff *__skb_udp_tunnel_segment(struct sk_buff *skb,
 			/* Only set up inner headers if we might be offloading
 			 * inner checksum.
 			 */
-			skb_reset_inner_headers(skb);
+			skb_reset_inner_headers(skb);/*此时skb指向内层报文，可以建立inner header值 */
 			skb->encapsulation = 1;
 		}
 
 		skb->mac_len = mac_len;
 		skb->protocol = protocol;
 
-		skb_push(skb, outer_hlen);
-		skb_reset_mac_header(skb);
-		skb_set_network_header(skb, mac_len);
-		skb_set_transport_header(skb, udp_offset);
+		skb_push(skb, outer_hlen);/*SKB 移到外层的mac头部*/
+		skb_reset_mac_header(skb); /*重置mac header*/
+		skb_set_network_header(skb, mac_len); /*设置network header ip层需要 */
+		skb_set_transport_header(skb, udp_offset);/*设置 transport header*/
 		len = skb->len - udp_offset;
-		uh = udp_hdr(skb);
+		uh = udp_hdr(skb);  /*获取udp头部 很重要 GSO分段后 有些数据需要刷新  包括长度等*/
 		uh->len = htons(len);
 
 		if (!need_csum)
@@ -112,7 +112,7 @@ static struct sk_buff *__skb_udp_tunnel_segment(struct sk_buff *skb,
 					(__force u32)delta));
 		if (offload_csum) {
 			skb->ip_summed = CHECKSUM_PARTIAL;
-			skb->csum_start = skb_transport_header(skb) - skb->head;
+			skb->csum_start = skb_transport_header(skb) - skb->head;/*重新计算csum值，位置更新了*/
 			skb->csum_offset = offsetof(struct udphdr, check);
 		} else if (remcsum) {
 			/* Need to calculate checksum from scratch,
@@ -120,14 +120,14 @@ static struct sk_buff *__skb_udp_tunnel_segment(struct sk_buff *skb,
 			 * remote_checksum_offload.
 			 */
 
-			skb->csum = skb_checksum(skb, udp_offset,
+			skb->csum = skb_checksum(skb, udp_offset, /*软件计算csum值*/
 						 skb->len - udp_offset,
 						 0);
 			uh->check = csum_fold(skb->csum);
 			if (uh->check == 0)
 				uh->check = CSUM_MANGLED_0;
 		} else {
-			uh->check = gso_make_checksum(skb, ~uh->check);
+			uh->check = gso_make_checksum(skb, ~uh->check);/*计算伪头部值*/
 
 			if (uh->check == 0)
 				uh->check = CSUM_MANGLED_0;
@@ -150,23 +150,23 @@ struct sk_buff *skb_udp_tunnel_segment(struct sk_buff *skb,
 
 	rcu_read_lock();
 
-	switch (skb->inner_protocol_type) {
+	switch (skb->inner_protocol_type) {/*vxlan封装时，该值为ENCAP_TYPE_ETHER*/
 	case ENCAP_TYPE_ETHER:
 		protocol = skb->inner_protocol;
-		gso_inner_segment = skb_mac_gso_segment;
+		gso_inner_segment = skb_mac_gso_segment;/*vxlan封装，内层报文为完整的报文（二层、三层、四层），继续从mac开始分段  */
 		break;
 	case ENCAP_TYPE_IPPROTO:
 		offloads = is_ipv6 ? inet6_offloads : inet_offloads;
 		ops = rcu_dereference(offloads[skb->inner_ipproto]);
 		if (!ops || !ops->callbacks.gso_segment)
 			goto out_unlock;
-		gso_inner_segment = ops->callbacks.gso_segment;
+		gso_inner_segment = ops->callbacks.gso_segment;/*调用4层协议的GSO分段能力，GRE/IPIP等等*/
 		break;
 	default:
 		goto out_unlock;
 	}
 
-	segs = __skb_udp_tunnel_segment(skb, features, gso_inner_segment,
+	segs = __skb_udp_tunnel_segment(skb, features, gso_inner_segment,/*upd封装报文GSO分段 */
 					protocol, is_ipv6);
 
 out_unlock:
@@ -175,9 +175,10 @@ out_unlock:
 	return segs;
 }
 
-static struct sk_buff *udp4_ufo_fragment(struct sk_buff *skb,
+static struct sk_buff *udp4_ufo_fragment(struct sk_buff *skb,/*UDP GSO报文分段入口函数*/
 					 netdev_features_t features)
-{
+{/*udp4_ufo_fragment提升了对vxlan等封装报文的支持，对GSO报文封装后报文的能够正确GSO分段，而不会产生IP分片报文。 
+实现这个功能，离不开skb_segment函数的支持，能够复制外层报文头而不管有多长，所以只要少量修改，内核能够支持多层封装的GSO分段。*/
 	struct sk_buff *segs = ERR_PTR(-EINVAL);
 	unsigned int mss;
 	__wsum csum;
@@ -187,7 +188,7 @@ static struct sk_buff *udp4_ufo_fragment(struct sk_buff *skb,
 	if (skb->encapsulation &&
 	    (skb_shinfo(skb)->gso_type &
 	     (SKB_GSO_UDP_TUNNEL|SKB_GSO_UDP_TUNNEL_CSUM))) {
-		segs = skb_udp_tunnel_segment(skb, features, false);
+		segs = skb_udp_tunnel_segment(skb, features, false); /*封装报文的GSO分段，可以基于内层报文进行GSO分段  */
 		goto out;
 	}
 
@@ -211,7 +212,7 @@ static struct sk_buff *udp4_ufo_fragment(struct sk_buff *skb,
 			     !(type & (SKB_GSO_UDP))))
 			goto out;
 
-		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss);
+		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss);/*如果报文来源不可信，则重新计算segs，返回  */
 
 		segs = NULL;
 		goto out;
@@ -226,8 +227,8 @@ static struct sk_buff *udp4_ufo_fragment(struct sk_buff *skb,
 	iph = ip_hdr(skb);
 
 	uh->check = 0;
-	csum = skb_checksum(skb, 0, skb->len, 0);
-	uh->check = udp_v4_check(skb->len, iph->saddr, iph->daddr, csum);
+	csum = skb_checksum(skb, 0, skb->len, 0); /*计算csum值*/
+	uh->check = udp_v4_check(skb->len, iph->saddr, iph->daddr, csum);/*计算UDP头部的校验和*/
 	if (uh->check == 0)
 		uh->check = CSUM_MANGLED_0;
 
@@ -236,7 +237,7 @@ static struct sk_buff *udp4_ufo_fragment(struct sk_buff *skb,
 	/* Fragment the skb. IP headers of the fragments are updated in
 	 * inet_gso_segment()
 	 */
-	segs = skb_segment(skb, features);
+	segs = skb_segment(skb, features);/*报文根据mss进行分段，因为包含UDP头，所以分段的结果是IP分片报文 */
 out:
 	return segs;
 }
@@ -430,8 +431,8 @@ static int udp4_gro_complete(struct sk_buff *skb, int nhoff)
 
 static const struct net_offload udpv4_offload = {
 	.callbacks = {
-		.gso_segment = udp4_ufo_fragment,
-		.gro_receive  =	udp4_gro_receive,
+		.gso_segment = udp4_ufo_fragment,/*UDP GSO报文分段*/
+		.gro_receive  =	udp4_gro_receive,/*UDP GSO报文接收*/
 		.gro_complete =	udp4_gro_complete,
 	},
 };

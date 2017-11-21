@@ -100,9 +100,9 @@ static struct sk_buff *dequeue_skb(struct Qdisc *q, bool *validate,
 	} else {
 		if (!(q->flags & TCQ_F_ONETXQUEUE) ||
 		    !netif_xmit_frozen_or_stopped(txq)) {
-			skb = q->dequeue(q);
+			skb = q->dequeue(q);/*获取报文*/
 			if (skb && qdisc_may_bulk(q))
-				try_bulk_dequeue_skb(q, skb, txq, packets);
+				try_bulk_dequeue_skb(q, skb, txq, packets);/*如果还能获取报文 尽可能获取多个报文*/
 		}
 	}
 	return skb;
@@ -157,17 +157,17 @@ int sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
 
 	/* Note that we validate skb (GSO, checksum, ...) outside of locks */
 	if (validate)
-		skb = validate_xmit_skb_list(skb, dev);
+		skb = validate_xmit_skb_list(skb, dev); /*报文校验 GSO分段 csum计算*/
 
 	if (likely(skb)) {
 		HARD_TX_LOCK(dev, txq, smp_processor_id());
 		if (!netif_xmit_frozen_or_stopped(txq))
-			skb = dev_hard_start_xmit(skb, dev, txq, &ret);
+			skb = dev_hard_start_xmit(skb, dev, txq, &ret); /*调用驱动发送报文*/
 
 		HARD_TX_UNLOCK(dev, txq);
 	} else {
 		spin_lock(root_lock);
-		return qdisc_qlen(q);
+		return qdisc_qlen(q); /*成功发送报文  如果还有报文 尝试继续发送报文*/
 	}
 	spin_lock(root_lock);
 
@@ -183,7 +183,7 @@ int sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
 			net_warn_ratelimited("BUG %s code %d qlen %d\n",
 					     dev->name, ret, q->q.qlen);
 
-		ret = dev_requeue_skb(skb, q);
+		ret = dev_requeue_skb(skb, q); /*发送失败 尝试再次发送报文*/
 	}
 
 	if (ret && netif_xmit_frozen_or_stopped(txq))
@@ -220,7 +220,7 @@ static inline int qdisc_restart(struct Qdisc *q, int *packets)
 	bool validate;
 
 	/* Dequeue packet */
-	skb = dequeue_skb(q, &validate, packets);
+	skb = dequeue_skb(q, &validate, packets);/*从缓存区取出报文 因为流量限制的原因 可能为空*/
 	if (unlikely(!skb))
 		return 0;
 
@@ -228,7 +228,7 @@ static inline int qdisc_restart(struct Qdisc *q, int *packets)
 	dev = qdisc_dev(q);
 	txq = skb_get_tx_queue(dev, skb);
 
-	return sch_direct_xmit(skb, q, dev, txq, root_lock, validate);
+	return sch_direct_xmit(skb, q, dev, txq, root_lock, validate);/*发送报文*/
 }
 
 void __qdisc_run(struct Qdisc *q)
@@ -236,20 +236,20 @@ void __qdisc_run(struct Qdisc *q)
 	int quota = weight_p;
 	int packets;
 
-	while (qdisc_restart(q, &packets)) {
+	while (qdisc_restart(q, &packets)) {/*循环发送报文*/
 		/*
 		 * Ordered by possible occurrence: Postpone processing if
 		 * 1. we've exceeded packet quota
 		 * 2. another process needs the CPU;
 		 */
 		quota -= packets;
-		if (quota <= 0 || need_resched()) {
+		if (quota <= 0 || need_resched()) {/*如果配额或需要调度，则触发软中断后退出 */
 			__netif_schedule(q);
 			break;
 		}
 	}
 
-	qdisc_run_end(q);
+	qdisc_run_end(q);/*qdisc 停止*/
 }
 
 unsigned long dev_trans_start(struct net_device *dev)

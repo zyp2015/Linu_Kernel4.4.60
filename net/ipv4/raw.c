@@ -95,13 +95,13 @@ static struct raw_hashinfo raw_v4_hashinfo = {
 
 void raw_hash_sk(struct sock *sk)
 {
-	struct raw_hashinfo *h = sk->sk_prot->h.raw_hash;
+	struct raw_hashinfo *h = sk->sk_prot->h.raw_hash;/*h.raw_hash即为raw_v4_hashinfo，和收包中的全局对象对上了*/
 	struct hlist_head *head;
 
-	head = &h->ht[inet_sk(sk)->inet_num & (RAW_HTABLE_SIZE - 1)];
+	head = &h->ht[inet_sk(sk)->inet_num & (RAW_HTABLE_SIZE - 1)];/*通过inet_num（即protocol）计算出链表的header*/
 
 	write_lock_bh(&h->lock);
-	sk_add_node(sk, head);
+	sk_add_node(sk, head);/*sock添加到head中 */
 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, 1);
 	write_unlock_bh(&h->lock);
 }
@@ -165,6 +165,9 @@ static int icmp_filter(const struct sock *sk, const struct sk_buff *skb)
  * RFC 1122: SHOULD pass TOS value up to the transport layer.
  * -> It does. And not only TOS, but all IP header.
  */
+ /*到这里我们知道，把报文提交给raw socket的关键是raw_v4_hashinfo全局变量，
+ 那么要看看是否在创建AF_INET raw socket时把sock对象保存到该全局变量中。
+ socket创建流程请参考AF_PACKET raw socket分析。AF_INET raw socket的create函数是inet_create，我们来看一看该函数的实现。*/
 static int raw_v4_input(struct sk_buff *skb, const struct iphdr *iph, int hash)
 {
 	struct sock *sk;
@@ -173,27 +176,27 @@ static int raw_v4_input(struct sk_buff *skb, const struct iphdr *iph, int hash)
 	struct net *net;
 
 	read_lock(&raw_v4_hashinfo.lock);
-	head = &raw_v4_hashinfo.ht[hash];
+	head = &raw_v4_hashinfo.ht[hash];/*得到相同hash值的sock链表*/
 	if (hlist_empty(head))
 		goto out;
 
 	net = dev_net(skb->dev);
-	sk = __raw_v4_lookup(net, __sk_head(head), iph->protocol,
+	sk = __raw_v4_lookup(net, __sk_head(head), iph->protocol,/*sock能否接收报文 匹配 源IP 目的IP 端口等*/
 			     iph->saddr, iph->daddr,
 			     skb->dev->ifindex);
 
-	while (sk) {
+	while (sk) {/*第一个如果不匹配，后续则不再处理，所以次序很重要，对raw socket肯定是能够匹配的报文的  */
 		delivered = 1;
-		if ((iph->protocol != IPPROTO_ICMP || !icmp_filter(sk, skb)) &&
-		    ip_mc_sf_allow(sk, iph->daddr, iph->saddr,
+		if ((iph->protocol != IPPROTO_ICMP || !icmp_filter(sk, skb)) &&/*报文不是ICMP 或者sock没有设置icmp filer*/
+		    ip_mc_sf_allow(sk, iph->daddr, iph->saddr,/*非组播报文，或者组播报文允许通过*/
 				   skb->dev->ifindex)) {
-			struct sk_buff *clone = skb_clone(skb, GFP_ATOMIC);
+			struct sk_buff *clone = skb_clone(skb, GFP_ATOMIC);/*克隆SKB*/
 
 			/* Not releasing hash table! */
 			if (clone)
-				raw_rcv(sk, clone);
+				raw_rcv(sk, clone);/*提交报文到sock*/
 		}
-		sk = __raw_v4_lookup(net, sk_next(sk), iph->protocol,
+		sk = __raw_v4_lookup(net, sk_next(sk), iph->protocol,/*取下一个sock */
 				     iph->saddr, iph->daddr,
 				     skb->dev->ifindex);
 	}
@@ -207,13 +210,13 @@ int raw_local_deliver(struct sk_buff *skb, int protocol)
 	int hash;
 	struct sock *raw_sk;
 
-	hash = protocol & (RAW_HTABLE_SIZE - 1);
-	raw_sk = sk_head(&raw_v4_hashinfo.ht[hash]);
+	hash = protocol & (RAW_HTABLE_SIZE - 1);/*根据protocol计算出hash值 一共可以有256个协议 所以不会重复*/
+	raw_sk = sk_head(&raw_v4_hashinfo.ht[hash]); /*得到sock，这个sock一定是在创建的时候放到raw_v4_hashinfo中的 */
 
 	/* If there maybe a raw socket we must check - if not we
 	 * don't care less
 	 */
-	if (raw_sk && !raw_v4_input(skb, ip_hdr(skb), hash))
+	if (raw_sk && !raw_v4_input(skb, ip_hdr(skb), hash))/*sock不为空，则把报文提交给sock */
 		raw_sk = NULL;
 
 	return raw_sk != NULL;
@@ -312,7 +315,7 @@ static int raw_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	/* Charge it to the socket. */
 
 	ipv4_pktinfo_prepare(sk, skb);
-	if (sock_queue_rcv_skb(sk, skb) < 0) {
+	if (sock_queue_rcv_skb(sk, skb) < 0) {/*放入sock的收包队列，并唤醒等待进程*/
 		kfree_skb(skb);
 		return NET_RX_DROP;
 	}
@@ -322,16 +325,16 @@ static int raw_rcv_skb(struct sock *sk, struct sk_buff *skb)
 
 int raw_rcv(struct sock *sk, struct sk_buff *skb)
 {
-	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb)) {
+	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb)) {/*ipsec策略检测*/
 		atomic_inc(&sk->sk_drops);
 		kfree_skb(skb);
 		return NET_RX_DROP;
 	}
 	nf_reset(skb);
 
-	skb_push(skb, skb->data - skb_network_header(skb));
+	skb_push(skb, skb->data - skb_network_header(skb));/*报文移动到IP层 用户能看到IP头*/
 
-	raw_rcv_skb(sk, skb);
+	raw_rcv_skb(sk, skb);/*sock接收报文*/
 	return 0;
 }
 
@@ -777,7 +780,7 @@ static int raw_init(struct sock *sk)
 	struct raw_sock *rp = raw_sk(sk);
 
 	if (inet_sk(sk)->inet_num == IPPROTO_ICMP)
-		memset(&rp->filter, 0, sizeof(rp->filter));
+		memset(&rp->filter, 0, sizeof(rp->filter));/*如果是icmp协议，那么初始化filter为0 */
 	return 0;
 }
 

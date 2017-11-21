@@ -174,12 +174,14 @@ int ip_build_and_send_pkt(struct sk_buff *skb, const struct sock *sk,
 	return ip_local_out(net, skb->sk, skb);
 }
 EXPORT_SYMBOL_GPL(ip_build_and_send_pkt);
-
+/*邻居子系统实现了IP层发包不感知MAC，即由邻居子系统实现了MAC头封装。MAC头信息包括：源MAC、目的MAC、协议类型，其中协议类型由上层指定，
+例如IPV4等等，源MAC地址是出口设备MAC地址（在路由表中确定出口设备），目的MAC是由邻居子系统提供的，大致可以猜到，
+邻居子系统会主动发起arp请求获取到mac地址，实现MAC封包。IP层发包最后会调用ip_finish_output2函数，我们从该函数入手分析邻居子系统。*/
 static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	struct dst_entry *dst = skb_dst(skb);
 	struct rtable *rt = (struct rtable *)dst;
-	struct net_device *dev = dst->dev;
+	struct net_device *dev = dst->dev; /*出口设备*/
 	unsigned int hh_len = LL_RESERVED_SPACE(dev);
 	struct neighbour *neigh;
 	u32 nexthop;
@@ -205,11 +207,12 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 	}
 
 	rcu_read_lock_bh();
-	nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
-	neigh = __ipv4_neigh_lookup_noref(dev, nexthop);
+	nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);/*目的IP地址*/
+	neigh = __ipv4_neigh_lookup_noref(dev, nexthop);/*根据目的地址查找IP项是否存在*/
 	if (unlikely(!neigh))
-		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false);
-	if (!IS_ERR(neigh)) {
+		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false);/*如果不存在  创建邻居表项 */
+	if (!IS_ERR(neigh)) {/*邻居表项创建后，output函数为neigh_resolve_output，此时邻居子系统还不具备发送IP报文的能力，
+	                            因为目的MAC地址还未获取，我们来看下dst_neigh_output函数实现*/
 		int res = dst_neigh_output(dst, neigh, skb); /*调用邻居子系统封装MAC头 并调用二层发送函数完成发包*/
 
 		rcu_read_unlock_bh();

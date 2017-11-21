@@ -1540,7 +1540,7 @@ int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 			if (udp_lib_checksum_complete(skb))
 				goto csum_error;
 
-			ret = encap_rcv(sk, skb);
+			ret = encap_rcv(sk, skb);/*报文处理，例如vxlan报文就是通过此方式实现 */
 			if (ret <= 0) {
 				UDP_INC_STATS_BH(sock_net(sk),
 						 UDP_MIB_INDATAGRAMS,
@@ -1587,7 +1587,7 @@ int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	}
 
 	if (rcu_access_pointer(sk->sk_filter) &&
-	    udp_lib_checksum_complete(skb))
+	    udp_lib_checksum_complete(skb))/*报文checksum检测  */
 		goto csum_error;
 
 	if (sk_rcvqueues_full(sk, sk->sk_rcvbuf)) {
@@ -1601,7 +1601,7 @@ int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	ipv4_pktinfo_prepare(sk, skb);
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk))
-		rc = __udp_queue_rcv_skb(sk, skb);
+		rc = __udp_queue_rcv_skb(sk, skb);/*报文保存到sk的接收队列，并通知用户进程*/
 	else if (sk_add_backlog(sk, skb, sk->sk_rcvbuf)) {
 		bh_unlock_sock(sk);
 		goto drop;
@@ -1760,14 +1760,14 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 	struct sock *sk;
 	struct udphdr *uh;
 	unsigned short ulen;
-	struct rtable *rt = skb_rtable(skb);
+	struct rtable *rt = skb_rtable(skb);/*得到路由表信息*/
 	__be32 saddr, daddr;
 	struct net *net = dev_net(skb->dev);
 
 	/*
 	 *  Validate the packet.
 	 */
-	if (!pskb_may_pull(skb, sizeof(struct udphdr)))
+	if (!pskb_may_pull(skb, sizeof(struct udphdr)))/*检测报文长度*/
 		goto drop;		/* No space for header. */
 
 	uh   = udp_hdr(skb);
@@ -1775,17 +1775,17 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 	saddr = ip_hdr(skb)->saddr;
 	daddr = ip_hdr(skb)->daddr;
 
-	if (ulen > skb->len)
+	if (ulen > skb->len)/*skb长度 不能小于UDP头部长度字段*/
 		goto short_packet;
 
 	if (proto == IPPROTO_UDP) {
 		/* UDP validates ulen. */
-		if (ulen < sizeof(*uh) || pskb_trim_rcsum(skb, ulen))
+		if (ulen < sizeof(*uh) || pskb_trim_rcsum(skb, ulen))/*裁剪UDP报文*/
 			goto short_packet;
 		uh = udp_hdr(skb);
 	}
 
-	if (udp4_csum_init(skb, uh, proto))
+	if (udp4_csum_init(skb, uh, proto))/*udp校验和校验 为0就说明有错*/
 		goto csum_error;
 
 	sk = skb_steal_sock(skb);
@@ -1796,7 +1796,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 		if (unlikely(sk->sk_rx_dst != dst))
 			udp_sk_rx_dst_set(sk, dst);
 
-		ret = udp_queue_rcv_skb(sk, skb);
+		ret = udp_queue_rcv_skb(sk, skb);/*sock处理skb报文*/
 		sock_put(sk);
 		/* a return value > 0 means to resubmit the input, but
 		 * it wants the return to be -protocol, or 0
@@ -1806,19 +1806,19 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 		return 0;
 	}
 
-	if (rt->rt_flags & (RTCF_BROADCAST|RTCF_MULTICAST))
+	if (rt->rt_flags & (RTCF_BROADCAST|RTCF_MULTICAST))/*组播报文*/
 		return __udp4_lib_mcast_deliver(net, skb, uh,
 						saddr, daddr, udptable, proto);
 
-	sk = __udp4_lib_lookup_skb(skb, uh->source, uh->dest, udptable);
+	sk = __udp4_lib_lookup_skb(skb, uh->source, uh->dest, udptable);/*全局检索 sock 我也不知道是啥*/
 	if (sk) {
 		int ret;
 
 		if (inet_get_convert_csum(sk) && uh->check && !IS_UDPLITE(sk))
 			skb_checksum_try_convert(skb, IPPROTO_UDP, uh->check,
-						 inet_compute_pseudo);
+						 inet_compute_pseudo);/*如果skb->ip_summed == CHECKSUM_NONE，重置csum*/
 
-		ret = udp_queue_rcv_skb(sk, skb);
+		ret = udp_queue_rcv_skb(sk, skb);/*sock处理报文*/
 		sock_put(sk);
 
 		/* a return value > 0 means to resubmit the input, but
@@ -1829,16 +1829,16 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 		return 0;
 	}
 
-	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb))
+	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb))/*ipsec安全检测*/
 		goto drop;
 	nf_reset(skb);
 
 	/* No socket. Drop packet silently, if checksum is wrong */
-	if (udp_lib_checksum_complete(skb))
+	if (udp_lib_checksum_complete(skb))/*没有socket，如果checksum出错则直接丢弃*/
 		goto csum_error;
 
 	UDP_INC_STATS_BH(net, UDP_MIB_NOPORTS, proto == IPPROTO_UDPLITE);
-	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PORT_UNREACH, 0);
+	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PORT_UNREACH, 0);/*发送ICMP 告诉对方目标不可达*/
 
 	/*
 	 * Hmm.  We got an UDP packet to a port to which we
@@ -1864,9 +1864,9 @@ csum_error:
 			    proto == IPPROTO_UDPLITE ? "Lite" : "",
 			    &saddr, ntohs(uh->source), &daddr, ntohs(uh->dest),
 			    ulen);
-	UDP_INC_STATS_BH(net, UDP_MIB_CSUMERRORS, proto == IPPROTO_UDPLITE);
+	UDP_INC_STATS_BH(net, UDP_MIB_CSUMERRORS, proto == IPPROTO_UDPLITE);/*UDP csum错误统计 */
 drop:
-	UDP_INC_STATS_BH(net, UDP_MIB_INERRORS, proto == IPPROTO_UDPLITE);
+	UDP_INC_STATS_BH(net, UDP_MIB_INERRORS, proto == IPPROTO_UDPLITE);/*UDP 丢包统计*/
 	kfree_skb(skb);
 	return 0;
 }
@@ -2031,7 +2031,7 @@ void udp_v4_early_demux(struct sk_buff *skb)
 
 int udp_rcv(struct sk_buff *skb)
 {
-	return __udp4_lib_rcv(skb, &udp_table, IPPROTO_UDP);
+	return __udp4_lib_rcv(skb, &udp_table, IPPROTO_UDP);/*udp 处理*/
 }
 
 void udp_destroy_sock(struct sock *sk)

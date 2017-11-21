@@ -266,7 +266,7 @@ static int inet_create(struct net *net, struct socket *sock, int protocol,
 lookup_protocol:
 	err = -ESOCKTNOSUPPORT;
 	rcu_read_lock();
-	list_for_each_entry_rcu(answer, &inetsw[sock->type], list) {
+	list_for_each_entry_rcu(answer, &inetsw[sock->type], list) {/*从inetsw找到匹配的inet_protosw对象*/
 
 		err = 0;
 		/* Check the non-wild match. */
@@ -313,14 +313,14 @@ lookup_protocol:
 		goto out_rcu_unlock;
 
 	sock->ops = answer->ops;
-	answer_prot = answer->prot;
+	answer_prot = answer->prot;/*raw socket，对象为raw_prot*/
 	answer_flags = answer->flags;
 	rcu_read_unlock();
 
 	WARN_ON(!answer_prot->slab);
 
 	err = -ENOBUFS;
-	sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot, kern);
+	sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot, kern);/*创建sock对象*/
 	if (!sk)
 		goto out;
 
@@ -333,8 +333,8 @@ lookup_protocol:
 
 	inet->nodefrag = 0;
 
-	if (SOCK_RAW == sock->type) {
-		inet->inet_num = protocol;
+	if (SOCK_RAW == sock->type) {/*raw socket  */
+		inet->inet_num = protocol;/*如果是raw socket，则inet_num设置为protocol值  */
 		if (IPPROTO_RAW == protocol)
 			inet->hdrincl = 1;
 	}
@@ -346,7 +346,7 @@ lookup_protocol:
 
 	inet->inet_id = 0;
 
-	sock_init_data(sock, sk);
+	sock_init_data(sock, sk);/*sock对象初始化*/
 
 	sk->sk_destruct	   = inet_sock_destruct;
 	sk->sk_protocol	   = protocol;
@@ -362,7 +362,7 @@ lookup_protocol:
 
 	sk_refcnt_debug_inc(sk);
 
-	if (inet->inet_num) {
+	if (inet->inet_num) {/*raw socket该值等于protocol，条件成立*/
 		/* It assumes that any protocol which allows
 		 * the user to assign a number at socket
 		 * creation time automatically
@@ -370,11 +370,11 @@ lookup_protocol:
 		 */
 		inet->inet_sport = htons(inet->inet_num);
 		/* Add to protocol hash chains. */
-		sk->sk_prot->hash(sk);
+		sk->sk_prot->hash(sk);/*socket放到hash表中，raw socket对应raw_hash_sk函数*/
 	}
 
 	if (sk->sk_prot->init) {
-		err = sk->sk_prot->init(sk);
+		err = sk->sk_prot->init(sk);/*raw socket对应raw_init函数*/
 		if (err)
 			sk_common_release(sk);
 	}
@@ -1224,29 +1224,29 @@ static struct sk_buff *inet_gso_segment(struct sk_buff *skb,
 		goto out;
 
 	skb_reset_network_header(skb);
-	nhoff = skb_network_header(skb) - skb_mac_header(skb);
-	if (unlikely(!pskb_may_pull(skb, sizeof(*iph))))
+	nhoff = skb_network_header(skb) - skb_mac_header(skb);/*根据network_header和mac_header 得到ip 层相对MAC的偏移*/
+	if (unlikely(!pskb_may_pull(skb, sizeof(*iph))))/*检测SKB是否可以移动到L4头*/
 		goto out;
 
 	iph = ip_hdr(skb);
-	ihl = iph->ihl * 4;
+	ihl = iph->ihl * 4; /*得到ip包头的实际长度 基于此 可以获得L4的首地址*/
 	if (ihl < sizeof(*iph))
 		goto out;
 
 	id = ntohs(iph->id);
-	proto = iph->protocol;
+	proto = iph->protocol;/*L4 协议层类型 TCP 6 UDP 17 ICMP 1*/
 
 	/* Warning: after this point, iph might be no longer valid */
-	if (unlikely(!pskb_may_pull(skb, ihl)))
+	if (unlikely(!pskb_may_pull(skb, ihl)))/*检测SKB是否可以移动到L4头*/
 		goto out;
 	__skb_pull(skb, ihl);
 
 	encap = SKB_GSO_CB(skb)->encap_level > 0;
 	if (encap)
 		features &= skb->dev->hw_enc_features;
-	SKB_GSO_CB(skb)->encap_level += ihl;
+	SKB_GSO_CB(skb)->encap_level += ihl; /*用来表示是否是内层报文*/
 
-	skb_reset_transport_header(skb);
+	skb_reset_transport_header(skb);/*设置transport_header的值 相对于mac的值*/
 
 	segs = ERR_PTR(-EPROTONOSUPPORT);
 
@@ -1254,32 +1254,32 @@ static struct sk_buff *inet_gso_segment(struct sk_buff *skb,
 	    skb_shinfo(skb)->gso_type & (SKB_GSO_SIT|SKB_GSO_IPIP))
 		udpfrag = proto == IPPROTO_UDP && encap;
 	else
-		udpfrag = proto == IPPROTO_UDP && !skb->encapsulation;
+		udpfrag = proto == IPPROTO_UDP && !skb->encapsulation;/*vxlan封装报文走此分支，此时udpfrag为false  */
 
 	ops = rcu_dereference(inet_offloads[proto]);
 	if (likely(ops && ops->callbacks.gso_segment))
-		segs = ops->callbacks.gso_segment(skb, features);
+		segs = ops->callbacks.gso_segment(skb, features); /*UDP或TCP GSO报文分段函数*/
 
 	if (IS_ERR_OR_NULL(segs))
 		goto out;
 
 	skb = segs;
 	do {
-		iph = (struct iphdr *)(skb_mac_header(skb) + nhoff);
-		if (udpfrag) {
+		iph = (struct iphdr *)(skb_mac_header(skb) + nhoff);/*根据mac header 和 IP偏移 得到 IP头部*/
+		if (udpfrag) { /*IP 分片报文*/
 			iph->id = htons(id);
 			iph->frag_off = htons(offset >> 3);
 			if (skb->next)
-				iph->frag_off |= htons(IP_MF);
-			offset += skb->len - nhoff - ihl;
+				iph->frag_off |= htons(IP_MF);/*后面还有报文，需要设置more frag标记*/
+			offset += skb->len - nhoff - ihl; /*计算offset值，下一个报文需要使用*/
 		} else {
-			iph->id = htons(id++);
+			iph->id = htons(id++);/*每个报文为完整的IP报文*/
 		}
 		iph->tot_len = htons(skb->len - nhoff);
-		ip_send_check(iph);
-		if (encap)
+		ip_send_check(iph); /*计算IP头部校验和*/
+		if (encap) /*如果encap值非空，说明当前处于内层报文中，所以需要设置inner heaer值  */
 			skb_reset_inner_headers(skb);
-		skb->network_header = (u8 *)iph - skb->head;
+		skb->network_header = (u8 *)iph - skb->head; /*设置network header*/
 	} while ((skb = skb->next));
 
 out:
@@ -1663,8 +1663,8 @@ static int ipv4_proc_init(void);
 static struct packet_offload ip_packet_offload   = {
 	.type = cpu_to_be16(ETH_P_IP),
 	.callbacks = {
-		.gso_segment = inet_gso_segment,
-		.gro_receive = inet_gro_receive,
+		.gso_segment = inet_gso_segment,/*GSO IP层分段函数*/
+		.gro_receive = inet_gro_receive,/*GSO IP层接收函数*/
 		.gro_complete = inet_gro_complete,
 	},
 };

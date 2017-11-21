@@ -344,7 +344,7 @@ static void register_prot_hook(struct sock *sk)
 		if (po->fanout)
 			__fanout_link(sk, po);
 		else
-			dev_add_pack(&po->prot_hook);
+			dev_add_pack(&po->prot_hook);/*注册到pytpe_all或 ptype_base中*/
 
 		sock_hold(sk);
 		po->running = 1;
@@ -1800,10 +1800,10 @@ static int packet_rcv_spkt(struct sk_buff *skb, struct net_device *dev,
 	if (!(po->pkt_type & (1 << skb->pkt_type)))
 		goto out;
 
-	if (!net_eq(dev_net(dev), sock_net(sk)))
+	if (!net_eq(dev_net(dev), sock_net(sk)))/*是否是同一个namespace*/
 		goto out;
 
-	skb = skb_share_check(skb, GFP_ATOMIC);
+	skb = skb_share_check(skb, GFP_ATOMIC);/*检查SKB共享*/
 	if (skb == NULL)
 		goto oom;
 
@@ -2001,18 +2001,18 @@ static int packet_rcv(struct sk_buff *skb, struct net_device *dev,
 	int skb_len = skb->len;
 	unsigned int snaplen, res;
 
-	sk = pt->af_packet_priv;
+	sk = pt->af_packet_priv;/*在packet_type中保存sock对象 */
 	po = pkt_sk(sk);
 
 	if (!(po->pkt_type & (1 << skb->pkt_type)))
 		goto drop;
 
-	if (!net_eq(dev_net(dev), sock_net(sk)))
+	if (!net_eq(dev_net(dev), sock_net(sk))) /*检测是否在同一个namespace中  */
 		goto drop;
 
 	skb->dev = dev;
 
-	if (dev->header_ops) {
+	if (dev->header_ops) {/*常见设备都包含 */
 		/* The device has an explicit notion of ll header,
 		 * exported to higher levels.
 		 *
@@ -2021,7 +2021,7 @@ static int packet_rcv(struct sk_buff *skb, struct net_device *dev,
 		 * never delivered to user.
 		 */
 		if (sk->sk_type != SOCK_DGRAM)
-			skb_push(skb, skb->data - skb_mac_header(skb));
+			skb_push(skb, skb->data - skb_mac_header(skb)); /*raw socket和packet socket都会提交给用户二层报文*/
 		else if (skb->pkt_type == PACKET_OUTGOING) {
 			/* Special case: outgoing packets have ll header at head */
 			skb_pull(skb, skb_network_offset(skb));
@@ -2082,9 +2082,9 @@ static int packet_rcv(struct sk_buff *skb, struct net_device *dev,
 	spin_lock(&sk->sk_receive_queue.lock);
 	po->stats.stats1.tp_packets++;
 	sock_skb_set_dropcount(sk, skb);
-	__skb_queue_tail(&sk->sk_receive_queue, skb);
+	__skb_queue_tail(&sk->sk_receive_queue, skb); /*skb保存到sock对象的接收队列中*/
 	spin_unlock(&sk->sk_receive_queue.lock);
-	sk->sk_data_ready(sk);
+	sk->sk_data_ready(sk);/*唤醒睡眠在该sock的进程或线程，该线程唤醒后会从接收队列中获取报文进行处理*/
 	return 0;
 
 drop_n_acct:
@@ -3080,26 +3080,26 @@ static int packet_create(struct net *net, struct socket *sock, int protocol,
 	if (!ns_capable(net->user_ns, CAP_NET_RAW))
 		return -EPERM;
 	if (sock->type != SOCK_DGRAM && sock->type != SOCK_RAW &&
-	    sock->type != SOCK_PACKET)
+	    sock->type != SOCK_PACKET)/*仅支持这三类socket*/
 		return -ESOCKTNOSUPPORT;
 
 	sock->state = SS_UNCONNECTED;
 
 	err = -ENOBUFS;
-	sk = sk_alloc(net, PF_PACKET, GFP_KERNEL, &packet_proto, kern);
+	sk = sk_alloc(net, PF_PACKET, GFP_KERNEL, &packet_proto, kern);/*创建sock对象*/
 	if (sk == NULL)
 		goto out;
 
 	sock->ops = &packet_ops;
 	if (sock->type == SOCK_PACKET)
-		sock->ops = &packet_ops_spkt;
+		sock->ops = &packet_ops_spkt;/*SOCK_PACKET类型的socket和其他的两种有差别 */
 
-	sock_init_data(sock, sk);
+	sock_init_data(sock, sk);/*初始化sock对象*/
 
 	po = pkt_sk(sk);
 	sk->sk_family = PF_PACKET;
 	po->num = proto;
-	po->xmit = dev_queue_xmit;
+	po->xmit = dev_queue_xmit;/*二层发包 需要用户构建完整的二层报文*/
 
 	err = packet_alloc_pending(po);
 	if (err)
@@ -3117,17 +3117,17 @@ static int packet_create(struct net *net, struct socket *sock, int protocol,
 	spin_lock_init(&po->bind_lock);
 	mutex_init(&po->pg_vec_lock);
 	po->rollover = NULL;
-	po->prot_hook.func = packet_rcv;
+	po->prot_hook.func = packet_rcv;/*raw socket使用此函数，二层收包时调用该func收包*/
 	po->pkt_type = PACKET_MASK_ANY & ~(1 << PACKET_LOOPBACK);
 
 	if (sock->type == SOCK_PACKET)
-		po->prot_hook.func = packet_rcv_spkt;
+		po->prot_hook.func = packet_rcv_spkt;/*SOCK_PACKET与其他两个不一样 可接收额外的信息*/
 
 	po->prot_hook.af_packet_priv = sk;
 
 	if (proto) {
-		po->prot_hook.type = proto;
-		register_prot_hook(sk);
+		po->prot_hook.type = proto;/*协议类型，匹配到协议类型时，会调用packet_rcv函数*/
+		register_prot_hook(sk);/*注册到协议处理中，这是实现抓包的关键，注册到ptype_all或ptype_base*/
 	}
 
 	mutex_lock(&net->packet.sklist_lock);

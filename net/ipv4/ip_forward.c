@@ -65,14 +65,14 @@ static int ip_forward_finish(struct net *net, struct sock *sk, struct sk_buff *s
 {
 	struct ip_options *opt	= &(IPCB(skb)->opt);
 
-	IP_INC_STATS_BH(net, IPSTATS_MIB_OUTFORWDATAGRAMS);
+	IP_INC_STATS_BH(net, IPSTATS_MIB_OUTFORWDATAGRAMS);/*报文统计*/
 	IP_ADD_STATS_BH(net, IPSTATS_MIB_OUTOCTETS, skb->len);
 
 	if (unlikely(opt->optlen))
 		ip_forward_options(skb);
 
 	skb_sender_cpu_clear(skb);
-	return dst_output(net, sk, skb);
+	return dst_output(net, sk, skb);/* 实际调用 ip_output*/
 }
 
 int ip_forward(struct sk_buff *skb)
@@ -84,16 +84,16 @@ int ip_forward(struct sk_buff *skb)
 	struct net *net;
 
 	/* that should never happen */
-	if (skb->pkt_type != PACKET_HOST)
+	if (skb->pkt_type != PACKET_HOST)/*不允许处理本机报文  即MAC地址是本地MAC地址的报文*/
 		goto drop;
 
 	if (unlikely(skb->sk))
 		goto drop;
 
-	if (skb_warn_if_lro(skb))
+	if (skb_warn_if_lro(skb))/*报文为非线性，gso_size不为零，但是gso_type为零，丢弃此类报文*/
 		goto drop;
 
-	if (!xfrm4_policy_check(NULL, XFRM_POLICY_FWD, skb))
+	if (!xfrm4_policy_check(NULL, XFRM_POLICY_FWD, skb))/*IPSEC安全规则检测*/
 		goto drop;
 
 	if (IPCB(skb)->opt.router_alert && ip_call_ra_chain(skb))
@@ -107,33 +107,33 @@ int ip_forward(struct sk_buff *skb)
 	 *	that reaches zero, we must reply an ICMP control message telling
 	 *	that the packet's lifetime expired.
 	 */
-	if (ip_hdr(skb)->ttl <= 1)
+	if (ip_hdr(skb)->ttl <= 1)/*TTL减1后等于0 丢弃这样的报文*/
 		goto too_many_hops;
 
-	if (!xfrm4_route_forward(skb))
+	if (!xfrm4_route_forward(skb))/*IPSEC 路由检测 */
 		goto drop;
 
-	rt = skb_rtable(skb);
+	rt = skb_rtable(skb);/*获取路由表项*/
 
 	if (opt->is_strictroute && rt->rt_uses_gateway)
 		goto sr_failed;
 
-	IPCB(skb)->flags |= IPSKB_FORWARDED;
+	IPCB(skb)->flags |= IPSKB_FORWARDED;/*forward标记*/
 	mtu = ip_dst_mtu_maybe_forward(&rt->dst, true);
 	if (ip_exceeds_mtu(skb, mtu)) {
 		IP_INC_STATS(net, IPSTATS_MIB_FRAGFAILS);
 		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
-			  htonl(mtu));
+			  htonl(mtu));/*报文长度超过mtu且不允许ip分片，发送icmp消息给发送者*/
 		goto drop;
 	}
 
 	/* We are about to mangle packet. Copy it! */
-	if (skb_cow(skb, LL_RESERVED_SPACE(rt->dst.dev)+rt->dst.header_len))
+	if (skb_cow(skb, LL_RESERVED_SPACE(rt->dst.dev)+rt->dst.header_len))/*扩充报文头 以填充MAC头*/
 		goto drop;
 	iph = ip_hdr(skb);
 
 	/* Decrease ttl after skb cow done */
-	ip_decrease_ttl(iph);
+	ip_decrease_ttl(iph);/*TTL 减1*/
 
 	/*
 	 *	We now generate an ICMP HOST REDIRECT giving the route
@@ -141,13 +141,13 @@ int ip_forward(struct sk_buff *skb)
 	 */
 	if (IPCB(skb)->flags & IPSKB_DOREDIRECT && !opt->srr &&
 	    !skb_sec_path(skb))
-		ip_rt_send_redirect(skb);
+		ip_rt_send_redirect(skb);/*通知发送端 路由重定向*/
 
-	skb->priority = rt_tos2priority(iph->tos);
+	skb->priority = rt_tos2priority(iph->tos);/*根据 TOS 计算 priority*/
 
 	return NF_HOOK(NFPROTO_IPV4, NF_INET_FORWARD,
 		       net, NULL, skb, skb->dev, rt->dst.dev,
-		       ip_forward_finish);
+		       ip_forward_finish);/*进入netfilter处理  允许之后调用 ip_forward_finish*/
 
 sr_failed:
 	/*

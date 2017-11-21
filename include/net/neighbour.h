@@ -283,15 +283,15 @@ static inline struct neighbour *___neigh_lookup_noref(
 	const void *pkey,
 	struct net_device *dev)
 {
-	struct neigh_hash_table *nht = rcu_dereference_bh(tbl->nht);
+	struct neigh_hash_table *nht = rcu_dereference_bh(tbl->nht);/*hash表 邻居表大时加速*/
 	struct neighbour *n;
 	u32 hash_val;
 
-	hash_val = hash(pkey, dev, nht->hash_rnd) >> (32 - nht->hash_shift);
+	hash_val = hash(pkey, dev, nht->hash_rnd) >> (32 - nht->hash_shift); /*计算hash值*/
 	for (n = rcu_dereference_bh(nht->hash_buckets[hash_val]);
 	     n != NULL;
 	     n = rcu_dereference_bh(n->next)) {
-		if (n->dev == dev && key_eq(n, pkey))
+		if (n->dev == dev && key_eq(n, pkey))/*dev相同 并且pkey相同 这里pkey是IPv4地址*/
 			return n;
 	}
 
@@ -438,7 +438,7 @@ static inline int neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 	if (neigh->used != now)
 		neigh->used = now;
 	if (!(neigh->nud_state&(NUD_CONNECTED|NUD_DELAY|NUD_PROBE)))
-		return __neigh_event_send(neigh, skb);
+		return __neigh_event_send(neigh, skb);/*发送ARP请求*/
 	return 0;
 }
 

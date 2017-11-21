@@ -191,36 +191,36 @@ bool ip_call_ra_chain(struct sk_buff *skb)
 
 static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
-	__skb_pull(skb, skb_network_header_len(skb));
+	__skb_pull(skb, skb_network_header_len(skb));/*传输层头部在 ip_rcv中设置 这里将报文移动到传输层*/
 
 	rcu_read_lock();
 	{
-		int protocol = ip_hdr(skb)->protocol;
+		int protocol = ip_hdr(skb)->protocol;/*得到IP层承载的协议 也就是传输层的协议*/
 		const struct net_protocol *ipprot;
 		int raw;
 
 	resubmit:
-		raw = raw_local_deliver(skb, protocol);
+		raw = raw_local_deliver(skb, protocol);/*AF_INET raw sock处理入口*/
 
-		ipprot = rcu_dereference(inet_protos[protocol]);
+		ipprot = rcu_dereference(inet_protos[protocol]);/*获取上层协议结构体 里面有上层协议的处理函数*/
 		if (ipprot) {
 			int ret;
 
 			if (!ipprot->no_policy) {
-				if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
+				if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {/*ipsec策略检测*/
 					kfree_skb(skb);
 					goto out;
 				}
 				nf_reset(skb);
 			}
-			ret = ipprot->handler(skb);
+			ret = ipprot->handler(skb);/*上交给上层协议  TCP tcp_rcv  UDP udp_rcv ICMP icmp等*/
 			if (ret < 0) {
 				protocol = -ret;
 				goto resubmit;
 			}
 			IP_INC_STATS_BH(net, IPSTATS_MIB_INDELIVERS);
-		} else {
-			if (!raw) {
+		} else {/*协议未注册*/
+			if (!raw) {/*如果不是raw，则检测ipse策略，如果检测通过则发送ICMP消息*/
 				if (xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
 					IP_INC_STATS_BH(net, IPSTATS_MIB_INUNKNOWNPROTOS);
 					icmp_send(skb, ICMP_DEST_UNREACH,
@@ -250,13 +250,13 @@ int ip_local_deliver(struct sk_buff *skb)
 	struct net *net = dev_net(skb->dev);
 
 	if (ip_is_fragment(ip_hdr(skb))) {
-		if (ip_defrag(net, skb, IP_DEFRAG_LOCAL_DELIVER))
+		if (ip_defrag(net, skb, IP_DEFRAG_LOCAL_DELIVER))/*如果是ip分片报文，则需要报文组装完整后才能提交给上层*/
 			return 0;
 	}
 
 	return NF_HOOK(NFPROTO_IPV4, NF_INET_LOCAL_IN,
 		       net, NULL, skb, skb->dev, NULL,
-		       ip_local_deliver_finish);
+		       ip_local_deliver_finish);/*进入netfilter LOCAL_IN处理 允许之后调用  ip_local_deliver_finish */
 }
 
 static inline bool ip_rcv_options(struct sk_buff *skb)
@@ -318,7 +318,7 @@ static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 
 	if (sysctl_ip_early_demux && !skb_dst(skb) && !skb->sk) {
 		const struct net_protocol *ipprot;
-		int protocol = iph->protocol;
+		int protocol = iph->protocol;/*得到传输层协议 TCP 6 UDP 17 ICMP 1*/
 
 		ipprot = rcu_dereference(inet_protos[protocol]);
 		if (ipprot && ipprot->early_demux) {
@@ -333,7 +333,7 @@ static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 	 *	how the packet travels inside Linux networking.
 	 */
 	if (!skb_valid_dst(skb)) {
-		int err = ip_route_input_noref(skb, iph->daddr, iph->saddr,
+		int err = ip_route_input_noref(skb, iph->daddr, iph->saddr,/*路由查询 决定 上传还是转发 丢弃*/
 					       iph->tos, skb->dev);
 		if (unlikely(err)) {
 			if (err == -EXDEV)
@@ -356,13 +356,13 @@ static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 	if (iph->ihl > 5 && ip_rcv_options(skb))
 		goto drop;
 
-	rt = skb_rtable(skb);
+	rt = skb_rtable(skb);/*得到路由表项，统计组播和广播报文*/
 	if (rt->rt_type == RTN_MULTICAST) {
 		IP_UPD_PO_STATS_BH(net, IPSTATS_MIB_INMCAST, skb->len);
 	} else if (rt->rt_type == RTN_BROADCAST)
 		IP_UPD_PO_STATS_BH(net, IPSTATS_MIB_INBCAST, skb->len);
 
-	return dst_input(skb);
+	return dst_input(skb);/*后续处理  本机处理为ip_local_deliver，转发为ip_forward  这里的函数赋值应该是在路由查询中完成的*/
 
 drop:
 	kfree_skb(skb);
@@ -381,20 +381,20 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 	/* When the interface is in promisc. mode, drop all the crap
 	 * that it receives, do not try to analyse it.
 	 */
-	if (skb->pkt_type == PACKET_OTHERHOST)
+	if (skb->pkt_type == PACKET_OTHERHOST)/*丢弃掉不是发往本机的报文  混杂模式会收到此类报文*/
 		goto drop;
 
 
 	net = dev_net(dev);
 	IP_UPD_PO_STATS_BH(net, IPSTATS_MIB_IN, skb->len);
 
-	skb = skb_share_check(skb, GFP_ATOMIC);
+	skb = skb_share_check(skb, GFP_ATOMIC);/*检查SKB是否share 是则克隆*/
 	if (!skb) {
 		IP_INC_STATS_BH(net, IPSTATS_MIB_INDISCARDS);
 		goto out;
 	}
 
-	if (!pskb_may_pull(skb, sizeof(struct iphdr)))
+	if (!pskb_may_pull(skb, sizeof(struct iphdr)))/*确保SKB可以容纳标准报文头 20 字节*/
 		goto inhdr_error;
 
 	iph = ip_hdr(skb);
@@ -410,7 +410,7 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 	 *	4.	Doesn't have a bogus length
 	 */
 
-	if (iph->ihl < 5 || iph->version != 4)
+	if (iph->ihl < 5 || iph->version != 4)/*IP头部至少20字节  只支持IPv4*/
 		goto inhdr_error;
 
 	BUILD_BUG_ON(IPSTATS_MIB_ECT1PKTS != IPSTATS_MIB_NOECTPKTS + INET_ECN_ECT_1);
@@ -420,15 +420,15 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 			IPSTATS_MIB_NOECTPKTS + (iph->tos & INET_ECN_MASK),
 			max_t(unsigned short, 1, skb_shinfo(skb)->gso_segs));
 
-	if (!pskb_may_pull(skb, iph->ihl*4))
+	if (!pskb_may_pull(skb, iph->ihl*4)) /*确保SKB可以容纳IP头部 至少20个字节*/
 		goto inhdr_error;
 
-	iph = ip_hdr(skb);
+	iph = ip_hdr(skb);/*获取IP头部*/
 
-	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
+	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))/*校验IP头部校验和*/
 		goto csum_error;
 
-	len = ntohs(iph->tot_len);
+	len = ntohs(iph->tot_len);/*获取总长度*/
 	if (skb->len < len) {
 		IP_INC_STATS_BH(net, IPSTATS_MIB_INTRUNCATEDPKTS);
 		goto drop;
@@ -439,22 +439,22 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 	 * is IP we can trim to the true length of the frame.
 	 * Note this now means skb->len holds ntohs(iph->tot_len).
 	 */
-	if (pskb_trim_rcsum(skb, len)) {
+	if (pskb_trim_rcsum(skb, len)) {/*去掉多余的字节*/
 		IP_INC_STATS_BH(net, IPSTATS_MIB_INDISCARDS);
 		goto drop;
 	}
 
-	skb->transport_header = skb->network_header + iph->ihl*4;
+	skb->transport_header = skb->network_header + iph->ihl*4;/*设置传输层header*/
 
 	/* Remove any debris in the socket control block */
-	memset(IPCB(skb), 0, sizeof(struct inet_skb_parm));
+	memset(IPCB(skb), 0, sizeof(struct inet_skb_parm));/*清空 cb 即inet_skb_parm值*/
 
 	/* Must drop socket now because of tproxy. */
 	skb_orphan(skb);
 
 	return NF_HOOK(NFPROTO_IPV4, NF_INET_PRE_ROUTING,
 		       net, NULL, skb, dev, NULL,
-		       ip_rcv_finish);
+		       ip_rcv_finish);/*进入netfilter 处理 允许之后调用 ip_rcv_finish */
 
 csum_error:
 	IP_INC_STATS_BH(net, IPSTATS_MIB_CSUMERRORS);

@@ -1124,14 +1124,14 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	 *	the protocol is 0, the family is instructed to select an appropriate
 	 *	default.
 	 */
-	sock = sock_alloc();
+	sock = sock_alloc();/*申请 sock 对象*/
 	if (!sock) {
 		net_warn_ratelimited("socket: no more sockets\n");
 		return -ENFILE;	/* Not exactly a match, but its the
 				   closest posix thing */
 	}
 
-	sock->type = type;
+	sock->type = type;/*设置sock的type  由应用层传入参数*/
 
 #ifdef CONFIG_MODULES
 	/* Attempt to load a protocol module if the find failed.
@@ -1140,7 +1140,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	 * requested real, full-featured networking support upon configuration.
 	 * Otherwise module support will break!
 	 */
-	if (rcu_access_pointer(net_families[family]) == NULL)
+	if (rcu_access_pointer(net_families[family]) == NULL)/*得到family对应的net_proto_family  */
 		request_module("net-pf-%d", family);
 #endif
 
@@ -1160,7 +1160,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	/* Now protected by module ref count */
 	rcu_read_unlock();
 
-	err = pf->create(net, sock, protocol, kern);
+	err = pf->create(net, sock, protocol, kern);/*调用net_proto_family的create，实现收包，AF_PACKET对应的是packet_family_ops  */
 	if (err < 0)
 		goto out_module_put;
 
@@ -1230,7 +1230,7 @@ SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
 		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;
 
-	retval = sock_create(family, type, protocol, &sock);
+	retval = sock_create(family, type, protocol, &sock);/*创建sock对象*/
 	if (retval < 0)
 		goto out;
 

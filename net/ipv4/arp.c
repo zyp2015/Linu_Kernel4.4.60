@@ -229,20 +229,20 @@ static int arp_constructor(struct neighbour *neigh)
 	struct neigh_parms *parms;
 
 	rcu_read_lock();
-	in_dev = __in_dev_get_rcu(dev);
+	in_dev = __in_dev_get_rcu(dev);/*通过net_device得到in_device*/
 	if (!in_dev) {
 		rcu_read_unlock();
 		return -EINVAL;
 	}
 
-	neigh->type = inet_addr_type_dev_table(dev_net(dev), dev, addr);
+	neigh->type = inet_addr_type_dev_table(dev_net(dev), dev, addr);/*设置地址类型*/
 
 	parms = in_dev->arp_parms;
 	__neigh_parms_put(neigh->parms);
 	neigh->parms = neigh_parms_clone(parms);
 	rcu_read_unlock();
 
-	if (!dev->header_ops) {
+	if (!dev->header_ops) {/*基本上网卡都会设置该值*/
 		neigh->nud_state = NUD_NOARP;
 		neigh->ops = &arp_direct_ops;
 		neigh->output = neigh_direct_output;
@@ -262,19 +262,19 @@ static int arp_constructor(struct neighbour *neigh)
 		   in old paradigm.
 		 */
 
-		if (neigh->type == RTN_MULTICAST) {
+		if (neigh->type == RTN_MULTICAST) {/*组播地址不需要ARP*/
 			neigh->nud_state = NUD_NOARP;
 			arp_mc_map(addr, neigh->ha, dev, 1);
-		} else if (dev->flags & (IFF_NOARP | IFF_LOOPBACK)) {
+		} else if (dev->flags & (IFF_NOARP | IFF_LOOPBACK)) {/*设备明确不需要ARP或者回环地址*/
 			neigh->nud_state = NUD_NOARP;
 			memcpy(neigh->ha, dev->dev_addr, dev->addr_len);
-		} else if (neigh->type == RTN_BROADCAST ||
+		} else if (neigh->type == RTN_BROADCAST ||/*广播或者点对点也不需要ARP*/
 			   (dev->flags & IFF_POINTOPOINT)) {
 			neigh->nud_state = NUD_NOARP;
 			memcpy(neigh->ha, dev->broadcast, dev->addr_len);
 		}
 
-		if (dev->header_ops->cache)
+		if (dev->header_ops->cache)/*eth_header_ops包含cache */
 			neigh->ops = &arp_hh_ops;
 		else
 			neigh->ops = &arp_generic_ops;
@@ -282,8 +282,9 @@ static int arp_constructor(struct neighbour *neigh)
 		if (neigh->nud_state & NUD_VALID)
 			neigh->output = neigh->ops->connected_output;
 		else
-			neigh->output = neigh->ops->output;
-	}
+			neigh->output = neigh->ops->output;/*初始阶段为该值，即arp_hh_ops的neigh_resolve_output函数*/
+	}/*邻居表项创建后，output函数为neigh_resolve_output，此时邻居子系统还不具备发送IP报文的能力，
+	                    因为目的MAC地址还未获取，我们来看下dst_neigh_output函数实现*/
 	return 0;
 }
 
