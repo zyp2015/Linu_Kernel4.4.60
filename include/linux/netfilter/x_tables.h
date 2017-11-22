@@ -189,19 +189,19 @@ struct xt_table {
 	struct list_head list;
 
 	/* What hooks you will enter on */
-	unsigned int valid_hooks;
+	unsigned int valid_hooks;/*影响的hook点*/
 
 	/* Man behind the curtain... */
-	struct xt_table_info *private;
+	struct xt_table_info *private;/*具体表的属性*/
 
 	/* Set this to THIS_MODULE if you are a module, otherwise NULL */
-	struct module *me;
+	struct module *me;/*如果要设计成模块，则为THIS_MODULE；否则为NULL*/
 
-	u_int8_t af;		/* address/protocol family */
+	u_int8_t af;		/* address/protocol family *//*协议簇*/
 	int priority;		/* hook order */
 
 	/* A unique name... */
-	const char name[XT_TABLE_MAXNAMELEN];
+	const char name[XT_TABLE_MAXNAMELEN];/*表名*/
 };
 
 #include <linux/netfilter_ipv4.h>
@@ -209,14 +209,14 @@ struct xt_table {
 /* The table itself */
 struct xt_table_info {
 	/* Size per table */
-	unsigned int size;
+	unsigned int size;/*表的大小*/
 	/* Number of entries: FIXME. --RR */
-	unsigned int number;
+	unsigned int number;/*表中规则数*/
 	/* Initial number of entries. Needed for module usage count */
-	unsigned int initial_entries;
+	unsigned int initial_entries;/*初始规则数*/
 
 	/* Entry points and underflows */
-	unsigned int hook_entry[NF_INET_NUMHOOKS];
+	unsigned int hook_entry[NF_INET_NUMHOOKS];/* 与hook_entry相对应的规则表上限偏移量，当无规则录入时，相应的hook_entry和underflow均为0 */
 	unsigned int underflow[NF_INET_NUMHOOKS];
 
 	/*

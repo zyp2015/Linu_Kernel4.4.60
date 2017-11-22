@@ -84,23 +84,23 @@
 
 struct iphdr {
 #if defined(__LITTLE_ENDIAN_BITFIELD)
-	__u8	ihl:4,
-		version:4;
-#elif defined (__BIG_ENDIAN_BITFIELD)
+	__u8	ihl:4,/*首部长度 单位 4字节  长度必须4的倍数 不是的话用填充字段填充*/
+		version:4;/*版本 IPV4 : 4*/
+#elif defined (__BIG_ENDIAN_BITFIELD)/*大小端区别*/
 	__u8	version:4,
   		ihl:4;
 #else
 #error	"Please fix <asm/byteorder.h>"
 #endif
-	__u8	tos;
-	__be16	tot_len;
-	__be16	id;
-	__be16	frag_off;
-	__u8	ttl;
-	__u8	protocol;
-	__sum16	check;
-	__be32	saddr;
-	__be32	daddr;
+	__u8	tos;/*服务类型 前三位表示优先级后面依次表示 时延 吞吐量 可靠性 廉价路由*/
+	__be16	tot_len;/*总长度*/
+	__be16	id;/*标识*/
+	__be16	frag_off;/* 低三位是标志 最低位 MF MF=1 后面还有分片 MF=0 表示最后一个分片 中间位DF DF=0 允许分片 后13位是段偏移量*/
+	__u8	ttl;/*生存时间*/
+	__u8	protocol;/*传输层协议 IP层承载的协议*/
+	__sum16	check;/*校验和*/
+	__be32	saddr;/*源地址*/
+	__be32	daddr;/*目的地址*/
 	/*The options start here. */
 } __attribute__((packed, aligned(2)));
 

@@ -385,7 +385,7 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 		goto drop;
 
 
-	net = dev_net(dev);
+	net = dev_net(dev);/*获取设备所在的网络空间*/
 	IP_UPD_PO_STATS_BH(net, IPSTATS_MIB_IN, skb->len);
 
 	skb = skb_share_check(skb, GFP_ATOMIC);/*检查SKB是否share 是则克隆*/

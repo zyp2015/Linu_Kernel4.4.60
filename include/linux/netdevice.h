@@ -1930,7 +1930,7 @@ struct netdev_queue *netdev_pick_tx(struct net_device *dev,
 static inline
 struct net *dev_net(const struct net_device *dev)
 {
-	return read_pnet(&dev->nd_net);
+	return read_pnet(&dev->nd_net);/*»ñÈ¡ÍøÂç¿Õ¼ä*/
 }
 
 static inline

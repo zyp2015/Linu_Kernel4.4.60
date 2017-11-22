@@ -44,11 +44,12 @@ struct compat_delta {
 	unsigned int offset; /* offset in kernel */
 	int delta; /* delta in 32bit user land */
 };
-
+/*Netfilter在内核中为防火墙系统维护了一个结构体，该结构体中存储的是内核中当前可用的所有match，target，
+它们都是以双向链表的形式被组织起来的。 table 是在网络空间里去了*/
 struct xt_af {
 	struct mutex mutex;
-	struct list_head match;
-	struct list_head target;
+	struct list_head match;/*每个 match模块都会注册到这里*/
+	struct list_head target;/*每个 target模块都会注册到这里*/
 #ifdef CONFIG_COMPAT
 	struct mutex compat_mutex;
 	struct compat_delta *compat_tab;
@@ -1104,12 +1105,13 @@ struct xt_table *xt_register_table(struct net *net,
 	mutex_lock(&xt[table->af].mutex);
 	/* Don't autoload: we'd eat our tail... */
 	list_for_each_entry(t, &net->xt.tables[table->af], list) {
-		if (strcmp(t->name, table->name) == 0) {
+		if (strcmp(t->name, table->name) == 0) {/*这里应该是保证只有一个filer表*/
 			ret = -EEXIST;
 			goto unlock;
 		}
 	}
-
+/*1）、将由newinfo参数所存储的表里面关于规则的基本信息结构体xt_table_info{}变量赋给由table参数所表示的packet_filter{}的private成员变量；
+2）、根据packet_filter的协议号af，将filter表挂到网络空间中xt结构体tables成员变量所表示的双向链表里。*/
 	/* Simplifies replace_table code. */
 	table->private = bootstrap;
 
@@ -1122,7 +1124,8 @@ struct xt_table *xt_register_table(struct net *net,
 	/* save number of initial entries */
 	private->initial_entries = private->number;
 
-	list_add(&table->list, &net->xt.tables[table->af]);
+	list_add(&table->list, &net->xt.tables[table->af]);/*将表加入双向链表  至此 filer表就建立好了 
+	                                            后面来看filer表的钩子函数是如何注册的*/
 	mutex_unlock(&xt[table->af].mutex);
 	return table;
 
@@ -1544,7 +1547,7 @@ static int __net_init xt_net_init(struct net *net)
 	int i;
 
 	for (i = 0; i < NFPROTO_NUMPROTO; i++)
-		INIT_LIST_HEAD(&net->xt.tables[i]);
+		INIT_LIST_HEAD(&net->xt.tables[i]);/*初始化网络空间中相关的东西 根据协议簇初始化 table表*/
 	return 0;
 }
 
@@ -1561,7 +1564,7 @@ static int __init xt_init(void)
 		seqcount_init(&per_cpu(xt_recseq, i));
 	}
 
-	xt = kmalloc(sizeof(struct xt_af) * NFPROTO_NUMPROTO, GFP_KERNEL);
+	xt = kmalloc(sizeof(struct xt_af) * NFPROTO_NUMPROTO, GFP_KERNEL);/*分配xt 大小与协议簇有关*/
 	if (!xt)
 		return -ENOMEM;
 
@@ -1571,8 +1574,8 @@ static int __init xt_init(void)
 		mutex_init(&xt[i].compat_mutex);
 		xt[i].compat_tab = NULL;
 #endif
-		INIT_LIST_HEAD(&xt[i].target);
-		INIT_LIST_HEAD(&xt[i].match);
+		INIT_LIST_HEAD(&xt[i].target);/*建立target链表*/
+		INIT_LIST_HEAD(&xt[i].match);/*建立match链表*/
 	}
 	rv = register_pernet_subsys(&xt_net_ops);
 	if (rv < 0)

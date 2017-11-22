@@ -69,7 +69,7 @@ static inline void nf_hook_state_init(struct nf_hook_state *p,
 				      struct net *net,
 				      int (*okfn)(struct net *, struct sock *, struct sk_buff *))
 {
-	p->hook = hook;
+	p->hook = hook;/*真的只是初始化的东西  并没有干什么东西*/
 	p->thresh = thresh;
 	p->pf = pf;
 	p->in = indev;
@@ -178,14 +178,14 @@ static inline int nf_hook_thresh(u_int8_t pf, unsigned int hook,
 				 int (*okfn)(struct net *, struct sock *, struct sk_buff *),
 				 int thresh)
 {
-	struct list_head *hook_list = &net->nf.hooks[pf][hook];
+	struct list_head *hook_list = &net->nf.hooks[pf][hook];/*获取网络空间中的hook点  hook点上注册了我们的钩子函数
+	                                                            根据协议和hook点取到hook链表头*/
+	if (nf_hook_list_active(hook_list, pf, hook)) {/*判断hook点是否存在 这里用了一个机制来优化if的速度*/
+		struct nf_hook_state state;/*后面netfilter版本新增的  hook函数定义和以前的版本也不一样了 用了这样的一个结构体来封装参数*/
 
-	if (nf_hook_list_active(hook_list, pf, hook)) {
-		struct nf_hook_state state;
-
-		nf_hook_state_init(&state, hook_list, hook, thresh,
+		nf_hook_state_init(&state, hook_list, hook, thresh,/*初始化state结构体 进入看看干了什么 原来真的只是初始化*/
 				   pf, indev, outdev, sk, net, okfn);
-		return nf_hook_slow(skb, &state);
+		return nf_hook_slow(skb, &state);/*原来的这个函数有很多参数,现在都封装到了state结构体里 在这里应该就是进去调用hook函数了*/
 	}
 	return 1;
 }
@@ -222,9 +222,9 @@ NF_HOOK_THRESH(uint8_t pf, unsigned int hook, struct net *net, struct sock *sk,
 	       int (*okfn)(struct net *, struct sock *, struct sk_buff *),
 	       int thresh)
 {
-	int ret = nf_hook_thresh(pf, hook, net, sk, skb, in, out, okfn, thresh);
+	int ret = nf_hook_thresh(pf, hook, net, sk, skb, in, out, okfn, thresh);/*进入netfilter处理*/
 	if (ret == 1)
-		ret = okfn(net, sk, skb);
+		ret = okfn(net, sk, skb);/*netfilter允许之后调用前面NF_HOOK中的函数, 也就是 ip_rcv_finish */
 	return ret;
 }
 
@@ -247,7 +247,7 @@ NF_HOOK(uint8_t pf, unsigned int hook, struct net *net, struct sock *sk, struct 
 	struct net_device *in, struct net_device *out,
 	int (*okfn)(struct net *, struct sock *, struct sk_buff *))
 {
-	return NF_HOOK_THRESH(pf, hook, net, sk, skb, in, out, okfn, INT_MIN);
+	return NF_HOOK_THRESH(pf, hook, net, sk, skb, in, out, okfn, INT_MIN);/*继续调用netfilter宏处理*/
 }
 
 /* Call setsockopt() */

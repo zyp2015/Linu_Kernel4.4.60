@@ -41,29 +41,33 @@ iptable_filter_hook(void *priv, struct sk_buff *skb,/*filter±íµÄhookº¯Êı ×îºó¶¼»
 	     ip_hdrlen(skb) < sizeof(struct iphdr)))
 		/* root is playing with raw sockets. */
 		return NF_ACCEPT;
+/*state->net->ipv4.iptable_filter Õâ¸ö¾ÍÊÇfiler±í ÀïÃæ´æ´¢ÁË¹æÔòÏà¹ØµÄ¶«Î÷*/
 
 	return ipt_do_table(skb, state, state->net->ipv4.iptable_filter);
+
+	/*net->ipv4.iptable_filter Õâ¸öÊÇÔÚ
+	iptable_filter_net_init ÕâÀï¸³ÖµµÄ ¶ønetÔòÊÇip_rcvº¯ÊıÀïµ÷ÓÃdev_netº¯Êı¹ıÈ¥µÄ  */
 }
 
-static struct nf_hook_ops *filter_ops  ;/*filer ±íµÄ¹³×Ó ÔÚÓÃ»§¿Õ¼ä±íÏÖ³öÀ´¾ÍÊÇÁ´*/
+static struct nf_hook_ops *filter_ops  ;/*filer ±íµÄ¹³×Ó×¢²á½á¹¹Ìå */
 
 /* Default to forward because I got too much mail already. */
 static bool forward = true;
 module_param(forward, bool, 0000);
-/*ºÃÏñÊÇÄÚºËÍøÂç¿Õ¼äÏà¹ØµÄ¶«Î÷ ²»ÖªµÀ¶à¾Ã¼Ó½ønetfilter¿ò¼ÜµÄ*/
+/*ºÃÏñÊÇÄÚºËÍøÂç¿Õ¼äÏà¹ØµÄ¶«Î÷ filer ÍøÂç¿Õ¼äµÄ³õÊ¼»¯ ²»ÖªµÀ¶à¾Ã¼Ó½ønetfilter¿ò¼ÜµÄ*/
 static int __net_init iptable_filter_net_init(struct net *net)
 {
-	struct ipt_replace *repl;
+	struct ipt_replace *repl;/*±íµÄ½á¹¹Ìå*/
 
-	repl = ipt_alloc_initial_table(&packet_filter);
+	repl = ipt_alloc_initial_table(&packet_filter);/*¸ù¾İpacket_filter ³õÊ¼»¯filer±í ·½±ãºóÃæ×¢²á ´æ´¢¹æÔòµÄÊÇÁíÍâÒ»¸ö½á¹¹Ìå */
 	if (repl == NULL)
 		return -ENOMEM;
 	/* Entry 1 is the FORWARD hook */
 	((struct ipt_standard *)repl->entries)[1].target.verdict =
 		forward ? -NF_ACCEPT - 1 : -NF_DROP - 1;
 
-	net->ipv4.iptable_filter =
-		ipt_register_table(net, &packet_filter, repl);
+	net->ipv4.iptable_filter =/*ÍøÂç¿Õ¼äµÄ±í¸³Öµ*/
+		ipt_register_table(net, &packet_filter, repl);/*×¢²áfiler±í*/
 	kfree(repl);
 	return PTR_ERR_OR_ZERO(net->ipv4.iptable_filter);
 }
@@ -83,13 +87,14 @@ static int __init iptable_filter_init(void)
 {
 	int ret;
 
-	ret = register_pernet_subsys(&iptable_filter_net_ops);
+	ret = register_pernet_subsys(&iptable_filter_net_ops);/*ÍøÂç¿Õ¼äµÄ¶«Î÷ »áÈ¥Ö´ĞĞiptable_filter_net_ops½á¹¹ÌåÀïÏàÓ¦µÄº¯Êı*/
 	if (ret < 0)
 		return ret;
 
 	/* Register hooks */
 	/*×¢²áfiler±íÏà¹ØµÄhookº¯Êı*/
-	filter_ops = xt_hook_link(&packet_filter, iptable_filter_hook);
+	filter_ops = xt_hook_link(&packet_filter, iptable_filter_hook);/*ÕâÀï¾ÍÊÇ×¢²áhookº¯ÊıÁË ¸ù¾İpacket_filterÖĞFILTER_VALID_HOOKS 
+	                                                                1µÄ¸öÊıÀ´×¢²á¹³×Óº¯Êı 1µÄÎ»ÖÃÒ²´ú±í×Åhookµã*/
 	if (IS_ERR(filter_ops)) {
 		ret = PTR_ERR(filter_ops);
 		unregister_pernet_subsys(&iptable_filter_net_ops);

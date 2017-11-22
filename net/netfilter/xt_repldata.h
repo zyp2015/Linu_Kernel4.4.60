@@ -12,7 +12,7 @@
  *	struct type##_error term;
  * } *tbl;
  */
-
+/*这个宏会返回最后的那个tbl  又学习了一个东西*/
 #define xt_alloc_initial_table(type, typ2) ({ \
 	unsigned int hook_mask = info->valid_hooks; \
 	unsigned int nhooks = hweight32(hook_mask); \

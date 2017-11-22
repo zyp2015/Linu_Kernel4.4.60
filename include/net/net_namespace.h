@@ -253,9 +253,9 @@ static inline void write_pnet(possible_net_t *pnet, struct net *net)
 static inline struct net *read_pnet(const possible_net_t *pnet)
 {
 #ifdef CONFIG_NET_NS
-	return pnet->net;
+	return pnet->net;/*如果支持网络空间就返回*/
 #else
-	return &init_net;
+	return &init_net;/*如果不支持网络空间 就返回初始的网络空间 支不支持网络空间都会生成这样一个 在初始化的时候就OK了*/
 #endif
 }
 

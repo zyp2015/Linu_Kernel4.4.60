@@ -56,7 +56,7 @@ void nf_unregister_afinfo(const struct nf_afinfo *afinfo)
 EXPORT_SYMBOL_GPL(nf_unregister_afinfo);
 
 #ifdef HAVE_JUMP_LABEL
-struct static_key nf_hooks_needed[NFPROTO_NUMPROTO][NF_MAX_HOOKS]; /*static_key»úÖÆ ÓÃÓÚÓÅ»¯Æµ·±if-elseÅÐ¶ÏµÄ¶«Î÷ 
+struct static_key nf_hooks_needed[NFPROTO_NUMPROTO][NF_MAX_HOOKS];/*static_key»úÖÆ ÓÃÓÚÓÅ»¯Æµ·±if-elseÅÐ¶ÏµÄ¶«Î÷ ¿ÉÒÔ¼Ó¿ìif else
                                                                 http://blog.csdn.net/tiantao2012/article/details/53995724*/
 EXPORT_SYMBOL(nf_hooks_needed);
 #endif
@@ -69,7 +69,7 @@ static struct list_head *nf_find_hook_list(struct net *net,
 	struct list_head *hook_list = NULL;
 
 	if (reg->pf != NFPROTO_NETDEV)
-		hook_list = &net->nf.hooks[reg->pf][reg->hooknum];
+		hook_list = &net->nf.hooks[reg->pf][reg->hooknum];/*¸ù¾ÝÐ­Òé´ØºÍhookµã·µ»Øµ±Ç°ÍøÂç¿Õ¼ähookµãµÄÁ´±íÍ·*/
 	else if (reg->hooknum == NF_NETDEV_INGRESS) {
 #ifdef CONFIG_NETFILTER_INGRESS
 		if (reg->dev && dev_net(reg->dev) == net)
@@ -116,7 +116,7 @@ int nf_register_net_hook(struct net *net, const struct nf_hook_ops *reg)
 		net_inc_ingress_queue();
 #endif
 #ifdef HAVE_JUMP_LABEL
-	static_key_slow_inc(&nf_hooks_needed[reg->pf][reg->hooknum]);
+	static_key_slow_inc(&nf_hooks_needed[reg->pf][reg->hooknum]);/*¼Ó¿ìif elseÅÐ¶ÏµÄ¶«Î÷*/
 #endif
 	return 0;
 }
@@ -201,8 +201,7 @@ int nf_register_hook(struct nf_hook_ops *reg)/*×¢²á¹³×Óº¯Êý*/
 		if (ret && ret != -ENOENT)
 			goto rollback;
 	}
-	list_add_tail(&reg->list, &nf_hook_list);/*ÕâÀï°ÑÕâ¸ö¹³×Óº¯Êý¼ÓÈëÁËÕâ¸öÁ´±í  Õâ¸öÁ´±íÔÚ³õÊ¼»¯µÄÊ±ºòµ÷ÓÃÁË°¡
-	                                       ÄÑµÀÊÇÔÚÐÂÔöÒ»¸öÍøÂç¿Õ¼äµÄÊ±ºò ³õÊ¼»¯µÄÊ±ºò ¾Í°ÑÒÑ¾­×¢²áµÄ¹³×Óº¯Êý×¢²áµ½Õâ¸öÍøÂç¿Õ¼äå?*/
+	list_add_tail(&reg->list, &nf_hook_list);/*ÕâÀï°ÑÕâ¸ö¹³×Óº¯Êý¼ÓÈëÁËÕâ¸öÁ´±í ËùÓÐÍøÂç¿Õ¼äµÄ¹³×Óº¯Êý¶¼¼ÓÈëÁËÕâ¸öÁ´±í ²»ÖªµÀÓÐÊ²Ã´ÓÃ*/
 	rtnl_unlock();
 
 	return 0;
@@ -267,15 +266,15 @@ unsigned int nf_iterate(struct list_head *head,
 	 * The caller must not block between calls to this
 	 * function because of risk of continuing from deleted element.
 	 */
-	list_for_each_entry_continue_rcu((*elemp), head, list) {
-		if (state->thresh > (*elemp)->priority)
+	list_for_each_entry_continue_rcu((*elemp), head, list) {/*±éÀú¹³×Óº¯Êý*/
+		if (state->thresh > (*elemp)->priority)/*¹³×Óº¯ÊýÒ²ÊÇÓÐÓÅÏÈ¼¶µÄ*/
 			continue;
 
 		/* Optimization: we don't need to hold module
 		   reference here, since function can't sleep. --RR */
-repeat:
-		verdict = (*elemp)->hook((*elemp)->priv, skb, state);
-		if (verdict != NF_ACCEPT) {
+repeat:                                                  /*netfilter×Ô´øµÄ¹³×Óº¯Êý Ó¦¸ÃÔÚiptable_*.c filer nat mangle³õÊ¼»¯µÄ*/
+		verdict = (*elemp)->hook((*elemp)->priv, skb, state);/*µ÷ÓÃ¹³×Óº¯Êý½øÐÐÏà¹ØµÄ´¦Àí ¹³×Óº¯Êý¾Í»áÈ¥µ÷ÓÃipt_do_table ±éÀú¹æÔò*/
+		if (verdict != NF_ACCEPT) {/*Èç¹û²»ÊÇÒÑ½ÓÊÜ ÊÇ½ÓÊÜÄÇ¾Í¼ÌÐøÖ´ÐÐÏÂÒ»¸ö¹³×Óº¯Êý*/
 #ifdef CONFIG_NETFILTER_DEBUG
 			if (unlikely((verdict & NF_VERDICT_MASK)
 							> NF_MAX_VERDICT)) {
@@ -284,8 +283,8 @@ repeat:
 				continue;
 			}
 #endif
-			if (verdict != NF_REPEAT)
-				return verdict;
+			if (verdict != NF_REPEAT)/*²¢ÇÒ²»ÊÇNF_REPEAT ÄÇ¾ÍÔÙÖ´ÐÐÒ»´Î¹³×Óº¯Êý*/
+				return verdict;/*·µ»Ø¹³×Óº¯ÊýÖ´ÐÐ½á¹û ÕâÀïÒ»°ãÊÇ¶ªÆú »òÕß Í£Ö¹ÏòÉÏ´«µÝ »òÕßÍ£Ö¹Ö´ÐÐ¶ÓÁÐµÄ¹³×Óº¯Êý*/
 			goto repeat;
 		}
 	}
@@ -304,10 +303,10 @@ int nf_hook_slow(struct sk_buff *skb, struct nf_hook_state *state)
 	/* We may already have this, but read-locks nest anyway */
 	rcu_read_lock();
 
-	elem = list_entry_rcu(state->hook_list, struct nf_hook_ops, list);
+	elem = list_entry_rcu(state->hook_list, struct nf_hook_ops, list);/*RCU»úÖÆ ÓÐÊ±¼äÑÐ¾¿Ò»ÏÂ*/
 next_hook:
-	verdict = nf_iterate(state->hook_list, skb, state, &elem);
-	if (verdict == NF_ACCEPT || verdict == NF_STOP) {
+	verdict = nf_iterate(state->hook_list, skb, state, &elem);/*±éÀúhookº¯Êý netfilterÔÚhookµãÉÏ×¢²áÁËÏàÓ¦µÄhookº¯Êý*/
+	if (verdict == NF_ACCEPT || verdict == NF_STOP) {/*·µ»Ø¹³×Óº¯ÊýµÄ´¦Àí½á¹û ¾ö¶¨±¨ÎÄ¼ÌÐø´«µÝ»¹ÊÇ¶ªÆú*/
 		ret = 1;
 	} else if ((verdict & NF_VERDICT_MASK) == NF_DROP) {
 		kfree_skb(skb);
@@ -315,7 +314,7 @@ next_hook:
 		if (ret == 0)
 			ret = -EPERM;
 	} else if ((verdict & NF_VERDICT_MASK) == NF_QUEUE) {
-		int err = nf_queue(skb, elem, state,
+		int err = nf_queue(skb, elem, state,/*Õâ¸ö²»ÖªµÀ ºóÃæÔÙ¿´°É*/
 				   verdict >> NF_VERDICT_QBITS);
 		if (err < 0) {
 			if (err == -ESRCH &&

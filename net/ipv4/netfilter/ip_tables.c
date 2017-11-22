@@ -307,7 +307,7 @@ static void trace_packet(struct net *net,
 static inline
 struct ipt_entry *ipt_next_entry(const struct ipt_entry *entry)
 {
-	return (void *)entry + entry->next_offset;
+	return (void *)entry + entry->next_offset;/*由于规则是线性存储的  直接加上偏移量就是下一条规则*/
 }
 
 static bool
@@ -316,7 +316,7 @@ ipt_handle_default_rule(struct ipt_entry *e, unsigned int *verdict)
 	struct xt_entry_target *t;
 	struct xt_standard_target *st;
 
-	if (e->target_offset != sizeof(struct ipt_entry))
+	if (e->target_offset != sizeof(struct ipt_entry))/*这里就能判断出这个规则是否有target 和 match*/
 		return false;
 
 	if (!(e->ip.flags & IPT_F_NO_DEF_MATCH))
@@ -343,7 +343,7 @@ ipt_do_table(struct sk_buff *skb,
 	     const struct nf_hook_state *state,
 	     struct xt_table *table)
 {
-	unsigned int hook = state->hook;
+	unsigned int hook = state->hook;/*hook点*/
 	static const char nulldevname[IFNAMSIZ] __attribute__((aligned(sizeof(long))));
 	const struct iphdr *ip;
 	/* Initializing verdict to NF_DROP keeps gcc happy. */
@@ -359,17 +359,17 @@ ipt_do_table(struct sk_buff *skb,
 	/* Initialization */
 	IP_NF_ASSERT(table->valid_hooks & (1 << hook));
 	local_bh_disable();
-	private = table->private;
+	private = table->private;/*表的信息取出来 里面有存储的规则 和 规则的数目等信息*/
 	cpu        = smp_processor_id();
 	/*
 	 * Ensure we load private-> members after we've fetched the base
 	 * pointer.
 	 */
 	smp_read_barrier_depends();
-	table_base = private->entries;
+	table_base = private->entries;/*一个表所有的规则存储 是按hook点 并且按顺序存储的*/
 
-	e = get_entry(table_base, private->hook_entry[hook]);
-	if (ipt_handle_default_rule(e, &verdict)) {
+	e = get_entry(table_base, private->hook_entry[hook]);/*获取表中这个hook点(也就是链的)规则入口*/
+	if (ipt_handle_default_rule(e, &verdict)) {/*应该是判断规则入口第一条规则是不是默认规则 是的话就可以返回了 因为没有其他规则*/
 		struct xt_counters *counter;
 
 		counter = xt_get_this_cpu_counter(&e->counters);
@@ -380,8 +380,8 @@ ipt_do_table(struct sk_buff *skb,
 
 	stackidx = 0;
 	ip = ip_hdr(skb);
-	indev = state->in ? state->in->name : nulldevname;
-	outdev = state->out ? state->out->name : nulldevname;
+	indev = state->in ? state->in->name : nulldevname;/*获取设备名*/
+	outdev = state->out ? state->out->name : nulldevname;/*获取设备名*/
 
 	addend = xt_write_recseq_begin();
 	jumpstack  = (struct ipt_entry **)private->jumpstack[cpu];
@@ -414,31 +414,32 @@ ipt_do_table(struct sk_buff *skb,
 	pr_debug("Entering %s(hook %u), UF %p\n",
 		 table->name, hook,
 		 get_entry(table_base, private->underflow[hook]));
-
+    
 	do {
 		const struct xt_entry_target *t;
 		const struct xt_entry_match *ematch;
 		struct xt_counters *counter;
 
 		IP_NF_ASSERT(e);
-		if (!ip_packet_match(ip, indev, outdev,
+		if (!ip_packet_match(ip, indev, outdev,/*检查基本的IP包头是否与规则匹配 不匹配则匹配下一条规则*/
 		    &e->ip, acpar.fragoff)) {
  no_match:
 			e = ipt_next_entry(e);
 			continue;
 		}
 
-		xt_ematch_foreach(ematch, e) {
+		xt_ematch_foreach(ematch, e) {/*扩展match匹配 从规则里找出每一个match 并进行match操作 只要有一个match
+		                                 不匹配 则开始下一条规则*/
 			acpar.match     = ematch->u.kernel.match;
 			acpar.matchinfo = ematch->data;
 			if (!acpar.match->match(skb, &acpar))
 				goto no_match;
 		}
 
-		counter = xt_get_this_cpu_counter(&e->counters);
+		counter = xt_get_this_cpu_counter(&e->counters);/*规则计数 应该就是我们看到的匹配的包的数目和字节数目*/
 		ADD_COUNTER(*counter, skb->len, 1);
 
-		t = ipt_get_target(e);
+		t = ipt_get_target(e);/*获取target*/
 		IP_NF_ASSERT(t->u.kernel.target);
 
 #if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE)
@@ -448,7 +449,8 @@ ipt_do_table(struct sk_buff *skb,
 				     state->out, table->name, private, e);
 #endif
 		/* Standard target? */
-		if (!t->u.kernel.target->target) {
+		if (!t->u.kernel.target->target) {/*判断是不是标准target 标准target target函数没有被赋值
+		                                    扩展target 就要去执行对应的target函数*/
 			int v;
 
 			v = ((struct xt_standard_target *)t)->verdict;
@@ -482,13 +484,13 @@ ipt_do_table(struct sk_buff *skb,
 			continue;
 		}
 
-		acpar.target   = t->u.kernel.target;
+		acpar.target   = t->u.kernel.target;/*获取扩展target*/
 		acpar.targinfo = t->data;
 
-		verdict = t->u.kernel.target->target(skb, &acpar);
+		verdict = t->u.kernel.target->target(skb, &acpar);/*调用扩展target函数*/
 		/* Target might have changed stuff. */
-		ip = ip_hdr(skb);
-		if (verdict == XT_CONTINUE)
+		ip = ip_hdr(skb);/*扩展target可能会更改IP包头的信息  所以要重新获取下IP头的信息*/
+		if (verdict == XT_CONTINUE)/*根据扩展target返回的信息进行处理 匹配下一条规则还是break*/
 			e = ipt_next_entry(e);
 		else
 			/* Verdict */
@@ -2018,6 +2020,9 @@ do_ipt_get_ctl(struct sock *sk, int cmd, void __user *user, int *len)
 	return ret;
 }
 
+/*简而言之ipt_register_table()所做的事情就是从模板repl变量里取出初始化数据，
+然后申请一块内存并用repl里的值来初始化它，之后将这块内存的首地址赋给packet_filter表的private成员，
+最后将packet_filter挂载到xt[2].tables的双向链表中。*/
 struct xt_table *ipt_register_table(struct net *net,
 				    const struct xt_table *table,
 				    const struct ipt_replace *repl)
@@ -2028,20 +2033,22 @@ struct xt_table *ipt_register_table(struct net *net,
 	void *loc_cpu_entry;
 	struct xt_table *new_table;
 
-	newinfo = xt_alloc_table_info(repl->size);
+	newinfo = xt_alloc_table_info(repl->size);/*为filer表申请内存*/
 	if (!newinfo) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	loc_cpu_entry = newinfo->entries;
-	memcpy(loc_cpu_entry, repl->entries, repl->size);
-
+	loc_cpu_entry = newinfo->entries;/*将filer表中的规则入口赋值给loc_cpu_entry*/
+	memcpy(loc_cpu_entry, repl->entries, repl->size);/*将repl中所有的规则拷贝到 newinfo->entries */
+	
+    /*translate_table函数将由newinfo所表示的table的各个规则进行边界检查，
+    然后对于newinfo所指的xt_talbe_info结构中的hook_entries和underflows赋予正确的值，最后将表项向其他cpu拷贝*/
 	ret = translate_table(net, newinfo, loc_cpu_entry, repl);
 	if (ret != 0)
 		goto out_free;
-
-	new_table = xt_register_table(net, table, &bootstrap, newinfo);
+	new_table = xt_register_table(net, table, &bootstrap, newinfo);/*这里才是真正注册filer表的地方 定义这个 packet_filter
+	        没有对private赋值  也就是xt_table_info 在注册时会对其赋值*/
 	if (IS_ERR(new_table)) {
 		ret = PTR_ERR(new_table);
 		goto out_free;

@@ -175,20 +175,20 @@ struct ipt_getinfo {
 /* The argument to IPT_SO_SET_REPLACE. */
 struct ipt_replace {
 	/* Which table. */
-	char name[XT_TABLE_MAXNAMELEN];
+	char name[XT_TABLE_MAXNAMELEN];/*表的名字*/
 
 	/* Which hook entry points are valid: bitmask.  You can't
            change this. */
-	unsigned int valid_hooks;
+	unsigned int valid_hooks;/*影响的hook点*/
 
 	/* Number of entries */
-	unsigned int num_entries;
+	unsigned int num_entries;/*表中规则数目*/
 
 	/* Total size of new entries */
-	unsigned int size;
+	unsigned int size;/*新规则所占空间的大小*/
 
 	/* Hook entry points. */
-	unsigned int hook_entry[NF_INET_NUMHOOKS];
+	unsigned int hook_entry[NF_INET_NUMHOOKS];/*进入hook的入口点*/
 
 	/* Underflow points. */
 	unsigned int underflow[NF_INET_NUMHOOKS];
