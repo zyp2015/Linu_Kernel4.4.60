@@ -46,7 +46,7 @@ iptable_filter_hook(void *priv, struct sk_buff *skb,/*filter±íµÄhookº¯Êı ×îºó¶¼»
 	return ipt_do_table(skb, state, state->net->ipv4.iptable_filter);
 
 	/*net->ipv4.iptable_filter Õâ¸öÊÇÔÚ
-	iptable_filter_net_init ÕâÀï¸³ÖµµÄ ¶ønetÔòÊÇip_rcvº¯ÊıÀïµ÷ÓÃdev_netº¯Êı¹ıÈ¥µÄ  */
+	iptable_filter_net_init ÕâÀï¸³ÖµµÄ ¶ønetÔòÊÇip_rcvº¯ÊıÀïµ÷ÓÃdev_netº¯Êı»ñÈ¡µÄ  */
 }
 
 static struct nf_hook_ops *filter_ops  ;/*filer ±íµÄ¹³×Ó×¢²á½á¹¹Ìå */
