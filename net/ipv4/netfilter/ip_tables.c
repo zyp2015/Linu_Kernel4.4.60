@@ -2206,7 +2206,7 @@ static int __init ip_tables_init(void)
 		goto err4;
 
 	/* Register setsockopt */
-	ret = nf_register_sockopt(&ipt_sockopts);
+	ret = nf_register_sockopt(&ipt_sockopts);/*注册setsockopt函数 给用户空间通信使用*/
 	if (ret < 0)
 		goto err5;
 

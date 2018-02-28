@@ -1547,7 +1547,7 @@ static int __net_init xt_net_init(struct net *net)
 	int i;
 
 	for (i = 0; i < NFPROTO_NUMPROTO; i++)
-		INIT_LIST_HEAD(&net->xt.tables[i]);/*初始化网络空间中相关的东西 根据协议簇初始化 table表*/
+		INIT_LIST_HEAD(&net->xt.tables[i]);/*初始化网络空间中相关的东西 根据协议簇初始化 table 表 每个协议对应自己的表*/
 	return 0;
 }
 
@@ -1568,7 +1568,7 @@ static int __init xt_init(void)
 	if (!xt)
 		return -ENOMEM;
 
-	for (i = 0; i < NFPROTO_NUMPROTO; i++) {
+	for (i = 0; i < NFPROTO_NUMPROTO; i++) {/*根据协议初始化每个协议的target match链表*/ 
 		mutex_init(&xt[i].mutex);
 #ifdef CONFIG_COMPAT
 		mutex_init(&xt[i].compat_mutex);

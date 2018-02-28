@@ -69,7 +69,7 @@ int ipv6_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt
 	struct inet6_dev *idev;
 	struct net *net = dev_net(skb->dev);
 
-	if (skb->pkt_type == PACKET_OTHERHOST) {
+	if (skb->pkt_type == PACKET_OTHERHOST) { /*丢掉不是发往本机的报文  混杂模式的网卡会收到此类报文*/
 		kfree_skb(skb);
 		return NET_RX_DROP;
 	}

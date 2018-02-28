@@ -272,7 +272,7 @@ unsigned int nf_iterate(struct list_head *head,
 
 		/* Optimization: we don't need to hold module
 		   reference here, since function can't sleep. --RR */
-repeat:                                                  /*netfilter自带的钩子函数 应该在iptable_*.c filer nat mangle初始化的*/
+repeat:                            /*netfilter自带的钩子函数 应该在iptable_*.c filer nat mangle初始化的*/
 		verdict = (*elemp)->hook((*elemp)->priv, skb, state);/*调用钩子函数进行相关的处理 钩子函数就会去调用ipt_do_table 遍历规则*/
 		if (verdict != NF_ACCEPT) {/*如果不是已接受 是接受那就继续执行下一个钩子函数*/
 #ifdef CONFIG_NETFILTER_DEBUG
@@ -303,7 +303,7 @@ int nf_hook_slow(struct sk_buff *skb, struct nf_hook_state *state)
 	/* We may already have this, but read-locks nest anyway */
 	rcu_read_lock();
 
-	elem = list_entry_rcu(state->hook_list, struct nf_hook_ops, list);/*RCU机制 有时间研究一下*/
+	elem = list_entry_rcu(state->hook_list, struct nf_hook_ops, list);/*RCU机制 有时间研究一下 获取链表节点的数据*/
 next_hook:
 	verdict = nf_iterate(state->hook_list, skb, state, &elem);/*遍历hook函数 netfilter在hook点上注册了相应的hook函数*/
 	if (verdict == NF_ACCEPT || verdict == NF_STOP) {/*返回钩子函数的处理结果 决定报文继续传递还是丢弃*/

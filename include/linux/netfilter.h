@@ -247,7 +247,8 @@ NF_HOOK(uint8_t pf, unsigned int hook, struct net *net, struct sock *sk, struct 
 	struct net_device *in, struct net_device *out,
 	int (*okfn)(struct net *, struct sock *, struct sk_buff *))
 {
-	return NF_HOOK_THRESH(pf, hook, net, sk, skb, in, out, okfn, INT_MIN);/*继续调用netfilter宏处理*/
+	return NF_HOOK_THRESH(pf, hook, net, sk, skb, in, out, okfn, INT_MIN);/* INT_MIN=-2147483648 */
+	                                                                     /*继续调用netfilter宏处理*/
 }
 
 /* Call setsockopt() */

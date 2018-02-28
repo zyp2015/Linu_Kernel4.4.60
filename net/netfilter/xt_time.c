@@ -173,7 +173,8 @@ time_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 	stamp = ktime_to_ns(skb->tstamp);
 	stamp = div_s64(stamp, NSEC_PER_SEC);
-
+    pr_info("UTC:stamp=%ld local:stamp=%ld timezone=%d",stamp,stamp-60 * sys_tz.tz_minuteswest,
+                            60 * sys_tz.tz_minuteswest);
 	if (info->flags & XT_TIME_LOCAL_TZ)
 		/* Adjust for local timezone */
 		stamp -= 60 * sys_tz.tz_minuteswest;

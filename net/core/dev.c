@@ -3996,7 +3996,7 @@ ncls:
 
 	/* deliver only exact match when indicated */
 	if (likely(!deliver_exact)) {
-		deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type,/*根据全局定义的协议处理报文 */
+		deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type,/* 根据全局定义的协议处理报文 */
 				       &ptype_base[ntohs(type) &
 						   PTYPE_HASH_MASK]);
 	}
@@ -4013,7 +4013,7 @@ ncls:
 		if (unlikely(skb_orphan_frags(skb, GFP_ATOMIC)))
 			goto drop;
 		else
-			ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);/*调用协议处理ip_rcv arp_rcv*/
+			ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);/*调用协议处理ip_rcv arp_rcv ipv6_rcv*/
 	} else {
 drop:
 		atomic_long_inc(&skb->dev->rx_dropped);

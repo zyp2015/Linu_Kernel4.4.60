@@ -71,7 +71,7 @@ struct nf_conn_help {
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
 
-struct nf_conn {
+struct nf_conn {/*描述一个连接的状态*/
 	/* Usage count in here is 1 for hash table/destruct timer, 1 per skb,
 	 * plus 1 for any connection(s) we are `master' for
 	 *

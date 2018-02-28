@@ -213,7 +213,7 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 				}
 				nf_reset(skb);
 			}
-			ret = ipprot->handler(skb);/*上交给上层协议  TCP tcp_rcv  UDP udp_rcv ICMP icmp等*/
+			ret = ipprot->handler(skb);/*上交给上层协议  TCP tcp_v4_rcv  UDP udp_rcv ICMP icmp等*/
 			if (ret < 0) {
 				protocol = -ret;
 				goto resubmit;

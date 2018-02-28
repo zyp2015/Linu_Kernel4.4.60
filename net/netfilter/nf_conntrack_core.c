@@ -848,9 +848,9 @@ __nf_conntrack_alloc(struct net *net,
 		goto out;
 
 	spin_lock_init(&ct->lock);
-	ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple = *orig;
+	ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple = *orig;/*进来的tuple*/
 	ct->tuplehash[IP_CT_DIR_ORIGINAL].hnnode.pprev = NULL;
-	ct->tuplehash[IP_CT_DIR_REPLY].tuple = *repl;
+	ct->tuplehash[IP_CT_DIR_REPLY].tuple = *repl;/*回复的tuple*/
 	/* save hash for reusing when confirming */
 	*(unsigned long *)(&ct->tuplehash[IP_CT_DIR_REPLY].hnnode.pprev) = hash;
 	ct->status = 0;
@@ -916,7 +916,7 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
 {
 	struct nf_conn *ct;
 	struct nf_conn_help *help;
-	struct nf_conntrack_tuple repl_tuple;
+	struct nf_conntrack_tuple repl_tuple;/*回应tuple*/
 	struct nf_conntrack_ecache *ecache;
 	struct nf_conntrack_expect *exp = NULL;
 	const struct nf_conntrack_zone *zone;
@@ -924,13 +924,13 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
 	struct nf_conntrack_zone tmp;
 	unsigned int *timeouts;
 
-	if (!nf_ct_invert_tuple(&repl_tuple, tuple, l3proto, l4proto)) {
+	if (!nf_ct_invert_tuple(&repl_tuple, tuple, l3proto, l4proto)) {/*根据原来的生成返回的连接跟踪*/
 		pr_debug("Can't invert tuple.\n");
 		return NULL;
 	}
 
 	zone = nf_ct_zone_tmpl(tmpl, skb, &tmp);
-	ct = __nf_conntrack_alloc(net, zone, tuple, &repl_tuple, GFP_ATOMIC,
+	ct = __nf_conntrack_alloc(net, zone, tuple, &repl_tuple, GFP_ATOMIC,/*分配空间并进行相应的初始化*/
 				  hash);
 	if (IS_ERR(ct))
 		return (struct nf_conntrack_tuple_hash *)ct;
@@ -1004,7 +1004,7 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
 
 	/* Now it is inserted into the unconfirmed list, bump refcount */
 	nf_conntrack_get(&ct->ct_general);
-	nf_ct_add_to_unconfirmed_list(ct);
+	nf_ct_add_to_unconfirmed_list(ct);/*连接还没有被确认的都被加入这个链表 unconfirmed */
 
 	local_bh_enable();
 
@@ -1036,7 +1036,7 @@ resolve_normal_ct(struct net *net, struct nf_conn *tmpl,
 	struct nf_conn *ct;
 	u32 hash;
 
-	if (!nf_ct_get_tuple(skb, skb_network_offset(skb),
+	if (!nf_ct_get_tuple(skb, skb_network_offset(skb),/*在这个函数里调用相关协议提供的pkt_to_tuple函数生成tuple对象*/
 			     dataoff, l3num, protonum, net, &tuple, l3proto,
 			     l4proto)) {
 		pr_debug("resolve_normal_ct: Can't get tuple\n");
@@ -1045,10 +1045,10 @@ resolve_normal_ct(struct net *net, struct nf_conn *tmpl,
 
 	/* look for tuple match */
 	zone = nf_ct_zone_tmpl(tmpl, skb, &tmp);
-	hash = hash_conntrack_raw(&tuple);
-	h = __nf_conntrack_find_get(net, zone, &tuple, hash);
+	hash = hash_conntrack_raw(&tuple);/*根据tuple计算出hash值*/
+	h = __nf_conntrack_find_get(net, zone, &tuple, hash);/*根据hash值去查找连接跟踪表 看tuple是否属于某个tuple_hash*/
 	if (!h) {
-		h = init_conntrack(net, tmpl, &tuple, l3proto, l4proto,
+		h = init_conntrack(net, tmpl, &tuple, l3proto, l4proto,/*没有找到 就必须创建一个*/
 				   skb, dataoff, hash);
 		if (!h)
 			return NULL;
@@ -1107,8 +1107,8 @@ nf_conntrack_in(struct net *net, u_int8_t pf, unsigned int hooknum,
 	}
 
 	/* rcu_read_lock()ed by nf_hook_slow */
-	l3proto = __nf_ct_l3proto_find(pf);
-	ret = l3proto->get_l4proto(skb, skb_network_offset(skb),
+	l3proto = __nf_ct_l3proto_find(pf);/*获取三层注册的跟踪结构体*/
+	ret = l3proto->get_l4proto(skb, skb_network_offset(skb),/*获取四层的协议 并把协议编号放在protonum里*/
 				   &dataoff, &protonum);
 	if (ret <= 0) {
 		pr_debug("not prepared to track yet or error occurred\n");
@@ -1118,12 +1118,12 @@ nf_conntrack_in(struct net *net, u_int8_t pf, unsigned int hooknum,
 		goto out;
 	}
 
-	l4proto = __nf_ct_l4proto_find(pf, protonum);
+	l4proto = __nf_ct_l4proto_find(pf, protonum);/*根据三层协议和四层协议 获取四层的跟踪结构体*/
 
 	/* It may be an special packet, error, unclean...
 	 * inverse of the return code tells to the netfilter
 	 * core what to do with the packet. */
-	if (l4proto->error != NULL) {
+	if (l4proto->error != NULL) {/*调用协议提供的错误校验函数对skb进行合法性校验*/
 		ret = l4proto->error(net, tmpl, skb, dataoff, &ctinfo,
 				     pf, hooknum);
 		if (ret <= 0) {
@@ -1137,7 +1137,7 @@ nf_conntrack_in(struct net *net, u_int8_t pf, unsigned int hooknum,
 			goto out;
 	}
 
-	ct = resolve_normal_ct(net, tmpl, skb, dataoff, pf, protonum,
+	ct = resolve_normal_ct(net, tmpl, skb, dataoff, pf, protonum,/*查找连接跟踪表里是否有跟踪项 创建连接跟踪表项*/
 			       l3proto, l4proto, &set_reply, &ctinfo);
 	if (!ct) {
 		/* Not valid part of a connection */

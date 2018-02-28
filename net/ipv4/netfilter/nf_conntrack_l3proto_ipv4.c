@@ -147,7 +147,7 @@ static unsigned int ipv4_conntrack_in(void *priv,
 				      struct sk_buff *skb,
 				      const struct nf_hook_state *state)
 {
-	return nf_conntrack_in(state->net, PF_INET, state->hook, skb);
+	return nf_conntrack_in(state->net, PF_INET, state->hook, skb);/*进入连接跟踪*/
 }
 
 static unsigned int ipv4_conntrack_local(void *priv,
@@ -167,37 +167,37 @@ static struct nf_hook_ops ipv4_conntrack_ops[]   = {
 	{
 		.hook		= ipv4_conntrack_in,
 		.pf		= NFPROTO_IPV4,
-		.hooknum	= NF_INET_PRE_ROUTING,
+		.hooknum	= NF_INET_PRE_ROUTING,/*连接跟踪的入口 发往本机或者需要本机转发的*/
 		.priority	= NF_IP_PRI_CONNTRACK,
 	},
 	{
 		.hook		= ipv4_conntrack_local,
 		.pf		= NFPROTO_IPV4,
-		.hooknum	= NF_INET_LOCAL_OUT,
+		.hooknum	= NF_INET_LOCAL_OUT,/*连接跟踪的入口 本机发出的*/
 		.priority	= NF_IP_PRI_CONNTRACK,
 	},
 	{
 		.hook		= ipv4_helper,
 		.pf		= NFPROTO_IPV4,
-		.hooknum	= NF_INET_POST_ROUTING,
+		.hooknum	= NF_INET_POST_ROUTING,/*连接跟踪的出口*/
 		.priority	= NF_IP_PRI_CONNTRACK_HELPER,
 	},
 	{
 		.hook		= ipv4_confirm,
 		.pf		= NFPROTO_IPV4,
-		.hooknum	= NF_INET_POST_ROUTING,
+		.hooknum	= NF_INET_POST_ROUTING,/*连接跟踪的出口*/
 		.priority	= NF_IP_PRI_CONNTRACK_CONFIRM,
 	},
 	{
 		.hook		= ipv4_helper,
 		.pf		= NFPROTO_IPV4,
-		.hooknum	= NF_INET_LOCAL_IN,
+		.hooknum	= NF_INET_LOCAL_IN,/*连接跟踪的出口*/
 		.priority	= NF_IP_PRI_CONNTRACK_HELPER,
 	},
 	{
 		.hook		= ipv4_confirm,
 		.pf		= NFPROTO_IPV4,
-		.hooknum	= NF_INET_LOCAL_IN,
+		.hooknum	= NF_INET_LOCAL_IN,/*连接跟踪的出口*/
 		.priority	= NF_IP_PRI_CONNTRACK_CONFIRM,
 	},
 };
@@ -461,7 +461,7 @@ static int __init nf_conntrack_l3proto_ipv4_init(void)
 		goto cleanup_sockopt;
 	}
 
-	ret = nf_register_hooks(ipv4_conntrack_ops,
+	ret = nf_register_hooks(ipv4_conntrack_ops,/*注册连接跟踪的hook函数*/
 				ARRAY_SIZE(ipv4_conntrack_ops));
 	if (ret < 0) {
 		pr_err("nf_conntrack_ipv4: can't register hooks.\n");

@@ -123,7 +123,7 @@
 
 
 /* The inetsw table contains everything that inet_create needs to
- * build a new socket.
+ * build a new socket.  inetsw数组包含了inet_create的所有东西,建立新的套接字
  */
 static struct list_head inetsw[SOCK_MAX];
 static DEFINE_SPINLOCK(inetsw_lock);
